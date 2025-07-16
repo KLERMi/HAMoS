@@ -46,7 +46,7 @@ def ui_header():
     st.markdown("""
         <div style='display: flex; align-items: center; justify-content: center;'>
             <img src='https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png' style='height:60px; margin-right:10px;'>
-            <div>
+            <div style='line-height: 0.8;'>
                 <h1 style='font-family: Aptos Light; font-size: 26px; color: #4472C4; margin: 0;'>Christ Base Assembly</h1>
                 <p style='font-family: Aptos Light; font-size: 14px; color: #ED7D31; margin: 0;'>winning souls, building people..</p>
             </div>
