@@ -159,4 +159,4 @@ if ADMIN_MODE:
             st.error(f"Error saving CSV: {e}")
 
 st.markdown("---")
-st.write("© 2025 HAMoS Revival")
+st.write("© 2025 CBA-HAMoS Revival")
