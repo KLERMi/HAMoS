@@ -75,7 +75,11 @@ else:
 mode = st.sidebar.selectbox("Mode", ["Register (Day 1)", "Check-In (Day 2/3)"])
 admin_mode = st.sidebar.checkbox("Admin Access")
 
-output_directory = r"C:\\Users\\OMODELEC\\OneDrive - Access Bank PLC\\Documents\\2025 codes"
+if admin_mode:
+    output_directory = os.path.expanduser("~")
+else:
+    output_directory = os.path.join(os.getcwd(), "public_data")
+os.makedirs(output_directory, exist_ok=True)
 output_file = os.path.join(output_directory, "hamos_registrations.csv")
 
 if mode == "Register (Day 1)":
@@ -108,7 +112,10 @@ if mode == "Register (Day 1)":
             session.commit()
             st.success(f"Thank you! Your Tag ID is {tag}")
             df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
-            df.to_csv(output_file, index=False)
+            try:
+                df.to_csv(output_file, index=False)
+            except Exception as e:
+                st.error(f"Error saving CSV: {e}")
             st.experimental_rerun()
 
 else:
@@ -132,7 +139,10 @@ else:
             session.commit()
             st.success(f"Check-in recorded for {session_info['name']}")
             df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
-            df.to_csv(output_file, index=False)
+            try:
+                df.to_csv(output_file, index=False)
+            except Exception as e:
+                st.error(f"Error saving CSV: {e}")
             st.experimental_rerun()
 
 if admin_mode:
@@ -142,8 +152,11 @@ if admin_mode:
         st.download_button(label="Download CSV", data=df.to_csv(index=False), file_name="hamos_registrations.csv", mime="text/csv")
     if st.button("Export CSV"):
         df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
-        df.to_csv(output_file, index=False)
-        st.write(f"CSV exported: {output_file}")
+        try:
+            df.to_csv(output_file, index=False)
+            st.write(f"CSV exported: {output_file}")
+        except Exception as e:
+            st.error(f"Error saving CSV: {e}")
 
 st.markdown("---")
-st.write("© 2025 CBA-HAMoS Revival")
+st.write("© 2025 HAMoS Revival")
