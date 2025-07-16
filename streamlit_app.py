@@ -48,7 +48,11 @@ def get_next_session():
 
 # Streamlit UI
 st.set_page_config("HAMoS Check-In & Ticketing", layout="centered")
-st.title("Healing All Manner of Sickness - Check-In & Ticketing")
+st.image("https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png")
+st.title("Christ Base Assembly")
+st.subheader("Winning souls, building people..")
+
+st.header("Healing All Manner of Sickness - Check-In & Ticketing")
 
 session_info = get_next_session()
 if session_info:
@@ -70,7 +74,6 @@ if mode == "Register (Day 1)":
         services = st.multiselect("Services", ["Prayer","Medical","Welfare"])
         submitted = st.form_submit_button("Submit")
     if submitted:
-        # enforce caps
         medical = 1 if "Medical" in services else 0
         welfare = 1 if "Welfare" in services else 0
         med_count = session.query(registrations).filter(registrations.c.services.like('%Medical%')).count()
@@ -88,6 +91,7 @@ if mode == "Register (Day 1)":
             session.execute(ins)
             session.commit()
             st.success(f"Thank you! Your Tag ID is {tag}")
+            st.button("OK", on_click=lambda: st.experimental_rerun())
 
 else:  # Check-In
     with st.form("checkin_form"):
@@ -109,8 +113,8 @@ else:  # Check-In
                 session.query(registrations).filter(registrations.c.id==rec.id).update({"day1_attended": True})
             session.commit()
             st.success(f"Check-in recorded for {session_info['name']}")
+            st.button("OK", on_click=lambda: st.experimental_rerun())
 
-# Export data
 if st.checkbox("Show all registrations"):
     df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
     st.dataframe(df)
@@ -120,4 +124,4 @@ if st.button("Export CSV"):
     st.write("CSV exported: registrations_export.csv")
 
 st.markdown("---")
-st.write("© 2025 HAMoS Revival")
+st.write("© 2025 CBA HAMoS Revival")
