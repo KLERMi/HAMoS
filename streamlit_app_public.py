@@ -1,44 +1,23 @@
-# PUBLIC VERSION: streamlit_app_public.py
+# ADMIN VERSION: streamlit_app_admin.py
 
 import streamlit as st
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, MetaData, inspect, select, func
+import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
 
-# Use local SQLite database file, no connection string required
-db_path = 'public_registrations.db'
-DATABASE_URL = f'sqlite:///{db_path}'
-engine = create_engine(DATABASE_URL)
-metadata = MetaData()
+# Google Sheets setup
+SHEET_ID = '1mFa47rJ7-ilULFu52PxLTo8OuxGsasveBL5N6CL4nCk'
+SHEET_NAME = 'Sheet1'
 
-registrations = Table('registrations', metadata,
-    Column('id', Integer, primary_key=True),
-    Column('tag_id', String, unique=True),
-    Column('phone', String),
-    Column('full_name', String),
-    Column('gender', String),
-    Column('age_range', String),
-    Column('membership', String),
-    Column('location', String),
-    Column('consent', Boolean),
-    Column('services', String),
-    Column('medical_count', Integer, default=0),
-    Column('welfare_count', Integer, default=0),
-    Column('day2_attended', Boolean, default=False),
-    Column('day3_attended', Boolean, default=False),
-    Column('ts', DateTime, default=datetime.utcnow)
-)
-
-inspector = inspect(engine)
-if 'registrations' not in inspector.get_table_names():
-    metadata.create_all(engine)
-
-def next_tag():
-    with engine.connect() as conn:
-        count = conn.execute(select(func.count()).select_from(registrations)).scalar_one() + 1
-    return f"HAMoS-{count:04d}"
+# Authenticate with service account
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+credentials = Credentials.from_service_account_file("cba-hamos-49c7e60ee4fb.json", scopes=SCOPES)
+gc = gspread.authorize(credentials)
+sheet = gc.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
 
 def ui_header():
-    st.set_page_config("HAMoS Registration", layout="centered")
+    st.set_page_config("HAMoS Admin", layout="centered")
     st.markdown("""
         <div style='display: flex; align-items: center; justify-content: center;'>
             <img src='https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png' style='height:60px; margin-right:10px;'>
@@ -49,34 +28,44 @@ def ui_header():
         </div>
         """, unsafe_allow_html=True)
 
-ui_header()
+def authenticate():
+    with st.sidebar:
+        profile = st.text_input("Profile ID")
+        password = st.text_input("Password", type="password")
+        login_btn = st.button("Login")
+    if login_btn:
+        if (profile == "HAM1" and password == "christbase22") or (profile == "HAM2" and password == "christbase23"):
+            st.session_state.logged_in = True
+        else:
+            st.error("Invalid credentials")
 
-if "submitted" not in st.session_state:
-    st.session_state.submitted = False
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-if not st.session_state.submitted:
-    with st.form("registration_form"):
-        phone = st.text_input("Phone", max_chars=11)
-        name = st.text_input("Full Name")
-        gender = st.selectbox("Gender", ["Male", "Female"])
-        age = st.selectbox("Age Range", ["10-20", "21-30", "31-40", "41-50", "51-60", "61-70", "70+"])
-        membership = st.selectbox("CBA Membership", ["Existing", "New"])
-        location = st.text_input("Location (Community/LGA)")
-        consent = st.checkbox("Consent to follow-up")
-        services = st.multiselect("Services", ["Prayer", "Medical", "Welfare"])
-        submitted = st.form_submit_button("Submit")
-
-    if submitted:
-        tag = next_tag()
-        with engine.begin() as conn:
-            ins = registrations.insert().values(
-                tag_id=tag, phone=phone, full_name=name, gender=gender,
-                age_range=age, membership=membership, location=location,
-                consent=consent, services=','.join(services),
-                medical_count=0, welfare_count=0, day2_attended=False, day3_attended=False, ts=datetime.utcnow()
-            )
-            conn.execute(ins)
-        st.session_state.submitted = True
-        st.success(f"Thank you! Your Tag ID is {tag}")
+if not st.session_state.logged_in:
+    ui_header()
+    authenticate()
 else:
-    st.button("Register Another", on_click=lambda: st.session_state.update(submitted=False))
+    ui_header()
+    st.title("HAMoS Admin Dashboard")
+
+    # Fetch all records
+    records = sheet.get_all_records()
+    df = pd.DataFrame(records)
+
+    st.subheader("Most Recent Records")
+    if not df.empty:
+        st.dataframe(df.sort_values(by="ts", ascending=False).head(10))
+    else:
+        st.info("No records available.")
+
+    with st.expander("Search Records"):
+        search_input = st.text_input("Enter Phone Number or Tag ID")
+        if st.button("Search"):
+            filtered = df[(df['phone'] == search_input) | (df['tag_id'] == search_input)]
+            if not filtered.empty:
+                st.write(filtered)
+            else:
+                st.info("No matching record found.")
+
+    st.download_button("Download All Registrations", data=df.to_csv(index=False).encode(), file_name="hamos_registrations.csv", mime="text/csv")
