@@ -2,7 +2,7 @@
 
 import streamlit as st
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, MetaData, inspect
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, MetaData, inspect, select, func
 from sqlalchemy.orm import sessionmaker
 
 ADMIN_MODE = False
@@ -36,7 +36,7 @@ Session = sessionmaker(bind=engine)
 session = Session()
 
 def next_tag():
-    count = session.query(registrations).count() + 1
+    count = session.execute(select(func.count()).select_from(registrations)).scalar() + 1
     return f"HAMoS-{count:04d}"
 
 def ui_header():
