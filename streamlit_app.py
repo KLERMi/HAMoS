@@ -53,7 +53,7 @@ st.set_page_config("HAMoS Check-In & Ticketing", layout="centered")
 st.markdown("""
     <style>
     .main {background: url('https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png') no-repeat center center fixed; background-size: cover; opacity: 0.3;}
-    body, .stApp {color: #4472C4;}
+    .stApp {color: #4472C4;}
     </style>
     <div style='display: flex; align-items: center; justify-content: center;'>
         <img src='https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png' style='height:60px; margin-right:10px;'>
@@ -146,4 +146,4 @@ if admin_mode:
         st.write(f"CSV exported: {output_file}")
 
 st.markdown("---")
-st.write("© 2025 HAMoS Revival")
+st.write("© 2025 CBA-HAMoS Revival")
