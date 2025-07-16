@@ -4,7 +4,10 @@ import streamlit as st
 from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, MetaData, inspect, select, func
 
-engine = create_engine('sqlite:///registrations.db', connect_args={'check_same_thread': False})
+# Use local SQLite database file, no connection string required
+db_path = 'public_registrations.db'
+DATABASE_URL = f'sqlite:///{db_path}'
+engine = create_engine(DATABASE_URL)
 metadata = MetaData()
 
 registrations = Table('registrations', metadata,
@@ -66,11 +69,13 @@ if not st.session_state.submitted:
     if submitted:
         tag = next_tag()
         with engine.begin() as conn:
-            conn.execute(registrations.insert().values(
+            ins = registrations.insert().values(
                 tag_id=tag, phone=phone, full_name=name, gender=gender,
                 age_range=age, membership=membership, location=location,
-                consent=consent, services=','.join(services)
-            ))
+                consent=consent, services=','.join(services),
+                medical_count=0, welfare_count=0, day2_attended=False, day3_attended=False, ts=datetime.utcnow()
+            )
+            conn.execute(ins)
         st.session_state.submitted = True
         st.success(f"Thank you! Your Tag ID is {tag}")
 else:
