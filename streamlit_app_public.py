@@ -11,7 +11,7 @@ SHEET_ID = '1mFa47rJ7-ilULFu52PxLTo8OuxGsasveBL5N6CL4nCk'
 SHEET_NAME = 'Sheet1'
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-credentials = Credentials.from_service_account_file("cba-hamos-5b3f3c6615e8.json", scopes=SCOPES)
+credentials = Credentials.from_service_account_info(dict(st.secrets["gcp"]), scopes=SCOPES)
 gc = gspread.authorize(credentials)
 sheet = gc.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
 
