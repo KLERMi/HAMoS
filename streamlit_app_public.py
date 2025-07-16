@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 ADMIN_MODE = False
 
-engine = create_engine('sqlite:///registrations.db')
+engine = create_engine('sqlite:///registrations.db', connect_args={'check_same_thread': False})
 metadata = MetaData()
 
 registrations = Table('registrations', metadata,
@@ -70,13 +70,12 @@ if not st.session_state.submitted:
 
     if submitted:
         tag = next_tag()
-        ins = registrations.insert().values(
-            tag_id=tag, phone=phone, full_name=name, gender=gender,
-            age_range=age, membership=membership, location=location,
-            consent=consent, services=','.join(services)
-        )
-        session.execute(ins)
-        session.commit()
+        with engine.begin() as conn:
+            conn.execute(registrations.insert().values(
+                tag_id=tag, phone=phone, full_name=name, gender=gender,
+                age_range=age, membership=membership, location=location,
+                consent=consent, services=','.join(services)
+            ))
         st.session_state.submitted = True
         st.success(f"Thank you! Your Tag ID is {tag}")
 else:
