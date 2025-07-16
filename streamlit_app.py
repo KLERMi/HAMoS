@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, MetaData
 from sqlalchemy.orm import sessionmaker
 import pandas as pd
+import os
 
 # Database setup
 engine = create_engine('sqlite:///registrations.db')
@@ -17,7 +18,7 @@ registrations = Table('registrations', metadata,
     Column('membership', String),
     Column('location', String),
     Column('consent', Boolean),
-    Column('services', String),  # comma-separated
+    Column('services', String),
     Column('medical_count', Integer, default=0),
     Column('welfare_count', Integer, default=0),
     Column('day2_attended', Boolean, default=False),
@@ -42,17 +43,24 @@ event_sessions = [
 ]
 
 def get_next_session():
-    now = datetime.utcnow() + timedelta(hours=1)  # adjust for Lagos GMT+1
+    now = datetime.utcnow() + timedelta(hours=1)
     upcoming = [s for s in event_sessions if s['dt'] > now]
     return min(upcoming, key=lambda s: s['dt']) if upcoming else None
 
 # Streamlit UI
 st.set_page_config("HAMoS Check-In & Ticketing", layout="centered")
+
 st.markdown("""
-    <div style='text-align: center;'>
-        <img src='https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png' style='height:60px; vertical-align: middle;'>
-        <h1 style='font-family: Aptos Light; font-size: 26px; display: inline; vertical-align: middle;'>Christ Base Assembly</h1>
-        <p style='font-family: Aptos Light; font-size: 14px;'>winning souls, building people..</p>
+    <style>
+    .main {background: url('https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png') no-repeat center center fixed; background-size: cover; opacity: 0.3;}
+    body, .stApp {color: #4472C4;}
+    </style>
+    <div style='display: flex; align-items: center; justify-content: center;'>
+        <img src='https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png' style='height:60px; margin-right:10px;'>
+        <div>
+            <h1 style='font-family: Aptos Light; font-size: 26px; color: #4472C4; margin: 0;'>Christ Base Assembly</h1>
+            <p style='font-family: Aptos Light; font-size: 14px; color: #ED7D31; margin: 0;'>winning souls, building people..</p>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -65,6 +73,10 @@ else:
     st.subheader("Event has concluded")
 
 mode = st.sidebar.selectbox("Mode", ["Register (Day 1)", "Check-In (Day 2/3)"])
+admin_mode = st.sidebar.checkbox("Admin Access")
+
+output_directory = r"C:\\Users\\OMODELEC\\OneDrive - Access Bank PLC\\Documents\\2025 codes"
+output_file = os.path.join(output_directory, "hamos_registrations.csv")
 
 if mode == "Register (Day 1)":
     with st.form("registration_form"):
@@ -95,9 +107,11 @@ if mode == "Register (Day 1)":
             session.execute(ins)
             session.commit()
             st.success(f"Thank you! Your Tag ID is {tag}")
-            st.button("OK", on_click=lambda: st.session_state.clear())
+            df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
+            df.to_csv(output_file, index=False)
+            st.experimental_rerun()
 
-else:  # Check-In
+else:
     with st.form("checkin_form"):
         key = st.text_input("Enter Phone or Tag ID")
         chk_submit = st.form_submit_button("Check-In")
@@ -117,15 +131,19 @@ else:  # Check-In
                 session.query(registrations).filter(registrations.c.id==rec.id).update({"day1_attended": True})
             session.commit()
             st.success(f"Check-in recorded for {session_info['name']}")
-            st.button("OK", on_click=lambda: st.experimental_rerun())
+            df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
+            df.to_csv(output_file, index=False)
+            st.experimental_rerun()
 
-if st.checkbox("Show all registrations"):
-    df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
-    st.dataframe(df)
-if st.button("Export CSV"):
-    df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
-    df.to_csv('registrations_export.csv', index=False)
-    st.write("CSV exported: registrations_export.csv")
+if admin_mode:
+    if st.checkbox("Show all registrations"):
+        df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
+        st.dataframe(df)
+        st.download_button(label="Download CSV", data=df.to_csv(index=False), file_name="hamos_registrations.csv", mime="text/csv")
+    if st.button("Export CSV"):
+        df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
+        df.to_csv(output_file, index=False)
+        st.write(f"CSV exported: {output_file}")
 
 st.markdown("---")
 st.write("© 2025 HAMoS Revival")
