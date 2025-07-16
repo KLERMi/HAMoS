@@ -1,4 +1,4 @@
-# ADMIN VERSION: streamlit_app_admin.py
+# PUBLIC VERSION: streamlit_app_public.py
 
 import streamlit as st
 from datetime import datetime
@@ -10,14 +10,13 @@ from google.oauth2.service_account import Credentials
 SHEET_ID = '1mFa47rJ7-ilULFu52PxLTo8OuxGsasveBL5N6CL4nCk'
 SHEET_NAME = 'Sheet1'
 
-# Authenticate with service account
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 credentials = Credentials.from_service_account_file("cba-hamos-49c7e60ee4fb.json", scopes=SCOPES)
 gc = gspread.authorize(credentials)
 sheet = gc.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
 
 def ui_header():
-    st.set_page_config("HAMoS Admin", layout="centered")
+    st.set_page_config("HAMoS Registration", layout="centered")
     st.markdown("""
         <div style='display: flex; align-items: center; justify-content: center;'>
             <img src='https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png' style='height:60px; margin-right:10px;'>
@@ -28,44 +27,33 @@ def ui_header():
         </div>
         """, unsafe_allow_html=True)
 
-def authenticate():
-    with st.sidebar:
-        profile = st.text_input("Profile ID")
-        password = st.text_input("Password", type="password")
-        login_btn = st.button("Login")
-    if login_btn:
-        if (profile == "HAM1" and password == "christbase22") or (profile == "HAM2" and password == "christbase23"):
-            st.session_state.logged_in = True
-        else:
-            st.error("Invalid credentials")
+ui_header()
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+if "submitted" not in st.session_state:
+    st.session_state.submitted = False
 
-if not st.session_state.logged_in:
-    ui_header()
-    authenticate()
+if not st.session_state.submitted:
+    with st.form("registration_form"):
+        phone = st.text_input("Phone", max_chars=11)
+        name = st.text_input("Full Name")
+        gender = st.selectbox("Gender", ["Male", "Female"])
+        age = st.selectbox("Age Range", ["10-20", "21-30", "31-40", "41-50", "51-60", "61-70", "70+"])
+        membership = st.selectbox("CBA Membership", ["Existing", "New"])
+        location = st.text_input("Location (Community/LGA)")
+        consent = st.checkbox("Consent to follow-up")
+        services = st.multiselect("Services", ["Prayer", "Medical", "Welfare"])
+        submitted = st.form_submit_button("Submit")
+
+    if submitted:
+        records = sheet.get_all_records()
+        tag = f"HAMoS-{len(records) + 1:04d}"
+        now = datetime.utcnow().isoformat()
+        row = [
+            tag, phone, name, gender, age, membership, location,
+            consent, ','.join(services), 0, 0, False, False, now
+        ]
+        sheet.append_row(row)
+        st.session_state.submitted = True
+        st.success(f"Thank you! Your Tag ID is {tag}")
 else:
-    ui_header()
-    st.title("HAMoS Admin Dashboard")
-
-    # Fetch all records
-    records = sheet.get_all_records()
-    df = pd.DataFrame(records)
-
-    st.subheader("Most Recent Records")
-    if not df.empty:
-        st.dataframe(df.sort_values(by="ts", ascending=False).head(10))
-    else:
-        st.info("No records available.")
-
-    with st.expander("Search Records"):
-        search_input = st.text_input("Enter Phone Number or Tag ID")
-        if st.button("Search"):
-            filtered = df[(df['phone'] == search_input) | (df['tag_id'] == search_input)]
-            if not filtered.empty:
-                st.write(filtered)
-            else:
-                st.info("No matching record found.")
-
-    st.download_button("Download All Registrations", data=df.to_csv(index=False).encode(), file_name="hamos_registrations.csv", mime="text/csv")
+    st.button("Register Another", on_click=lambda: st.session_state.update(submitted=False))
