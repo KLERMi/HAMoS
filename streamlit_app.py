@@ -1,9 +1,13 @@
+# Separate public and admin apps using environment variable or Streamlit secrets
 import streamlit as st
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, MetaData
 from sqlalchemy.orm import sessionmaker
 import pandas as pd
 import os
+
+# Configuration
+ADMIN_MODE = st.secrets.get("admin_mode", False)
 
 # Database setup
 engine = create_engine('sqlite:///registrations.db')
@@ -72,13 +76,9 @@ if session_info:
 else:
     st.subheader("Event has concluded")
 
-mode = st.sidebar.selectbox("Mode", ["Register (Day 1)", "Check-In (Day 2/3)"])
-admin_mode = st.sidebar.checkbox("Admin Access")
+mode = st.sidebar.selectbox("Mode", ["Register (Day 1)", "Check-In (Day 2/3)"]) if ADMIN_MODE else "Register (Day 1)"
 
-if admin_mode:
-    output_directory = os.path.expanduser("~")
-else:
-    output_directory = os.path.join(os.getcwd(), "public_data")
+output_directory = r"C:\\Users\\OMODELEC\\OneDrive - Access Bank PLC\\Documents\\2025 codes" if ADMIN_MODE else os.path.join(os.getcwd(), "public_data")
 os.makedirs(output_directory, exist_ok=True)
 output_file = os.path.join(output_directory, "hamos_registrations.csv")
 
@@ -145,7 +145,7 @@ else:
                 st.error(f"Error saving CSV: {e}")
             st.experimental_rerun()
 
-if admin_mode:
+if ADMIN_MODE:
     if st.checkbox("Show all registrations"):
         df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
         st.dataframe(df)
@@ -159,4 +159,4 @@ if admin_mode:
             st.error(f"Error saving CSV: {e}")
 
 st.markdown("---")
-st.write("© 2025 HAMoS Revival")
+st.write("© 2025 CBA-HAMoS Revival")
