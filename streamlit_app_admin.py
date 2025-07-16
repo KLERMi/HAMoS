@@ -1,61 +1,75 @@
 # ADMIN VERSION: streamlit_app_admin.py
 
 import streamlit as st
-from sqlalchemy import create_engine, Table, MetaData, select
-import pandas as pd
 from datetime import datetime
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, MetaData, inspect, select, func
+from sqlalchemy.orm import sessionmaker
+import pandas as pd
 
-# Database path (same as public app)
-db_path = 'public_registrations.db'
-DATABASE_URL = f'sqlite:///{db_path}'
+# SQLite database file
+DATABASE_URL = 'sqlite:///public_registrations.db'
 engine = create_engine(DATABASE_URL)
 metadata = MetaData()
 
-registrations = Table('registrations', metadata, autoload_with=engine)
+registrations = Table('registrations', metadata,
+    Column('id', Integer, primary_key=True),
+    Column('tag_id', String, unique=True),
+    Column('phone', String),
+    Column('full_name', String),
+    Column('gender', String),
+    Column('age_range', String),
+    Column('membership', String),
+    Column('location', String),
+    Column('consent', Boolean),
+    Column('services', String),
+    Column('medical_count', Integer, default=0),
+    Column('welfare_count', Integer, default=0),
+    Column('day2_attended', Boolean, default=False),
+    Column('day3_attended', Boolean, default=False),
+    Column('ts', DateTime, default=datetime.utcnow)
+)
 
-# Simple admin login system
-CREDENTIALS = {
-    "HAM1": "christbase22",
-    "HAM2": "christbase23"
-}
+inspector = inspect(engine)
+if 'registrations' not in inspector.get_table_names():
+    metadata.create_all(engine)
 
-st.set_page_config("HAMoS Admin", layout="centered")
+Session = sessionmaker(bind=engine)
+session = Session()
 
-# UI Header
-st.markdown("""
-    <div style='display: flex; align-items: center; justify-content: center;'>
-        <img src='https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png' style='height:60px; margin-right:10px;'>
-        <div style='line-height: 0.8;'>
-            <h1 style='font-family: Aptos Light; font-size: 26px; color: #4472C4; margin: 0;'>Christ Base Assembly</h1>
-            <p style='font-family: Aptos Light; font-size: 14px; color: #ED7D31; margin: 0;'>winning souls, building people..</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# Login form
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-if not st.session_state.authenticated:
-    with st.form("Login"):
-        username = st.text_input("Username")
+def authenticate():
+    st.set_page_config("HAMoS Admin", layout="centered")
+    with st.sidebar:
+        profile = st.text_input("Profile ID")
         password = st.text_input("Password", type="password")
-        login_btn = st.form_submit_button("Login")
-    
+        login_btn = st.button("Login")
     if login_btn:
-        if username in CREDENTIALS and CREDENTIALS[username] == password:
-            st.session_state.authenticated = True
-            st.experimental_rerun()
+        if (profile == "HAM1" and password == "christbase22") or (profile == "HAM2" and password == "christbase23"):
+            st.session_state.logged_in = True
         else:
             st.error("Invalid credentials")
 
-if st.session_state.authenticated:
-    st.write("### Registered Attendees")
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    authenticate()
+else:
+    st.title("HAMoS Admin Dashboard")
+
+    with st.expander("Search Records"):
+        search_input = st.text_input("Enter Phone Number or Tag ID")
+        if st.button("Search"):
+            with engine.connect() as conn:
+                query = select(registrations).where(
+                    (registrations.c.phone == search_input) | (registrations.c.tag_id == search_input)
+                )
+                result = conn.execute(query).fetchall()
+                if result:
+                    df = pd.DataFrame(result, columns=result[0].keys())
+                    st.write(df)
+                else:
+                    st.info("No matching record found.")
+
     with engine.connect() as conn:
-        result = conn.execute(select(registrations)).fetchall()
-        df = pd.DataFrame(result, columns=registrations.columns.keys())
-    
-    st.dataframe(df.drop(columns=["id"]))
-    
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("Download CSV", csv, "hamos_attendees.csv", "text/csv")
+        df = pd.read_sql(select(registrations), conn)
+    st.download_button("Download All Registrations", data=df.to_csv(index=False).encode(), file_name="hamos_registrations.csv", mime="text/csv")
