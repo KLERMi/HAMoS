@@ -7,7 +7,7 @@ import pandas as pd
 import os
 
 # Configuration
-ADMIN_MODE = st.secrets.get("admin_mode", False)
+ADMIN_MODE = str(st.secrets.get("admin_mode", "false")).lower() == "true"
 
 # Database setup
 engine = create_engine('sqlite:///registrations.db')
@@ -159,4 +159,4 @@ if ADMIN_MODE:
             st.error(f"Error saving CSV: {e}")
 
 st.markdown("---")
-st.write("© 2025 CBA-HAMoS Revival")
+st.write("© 2025 HAMoS Revival")
