@@ -1,13 +1,11 @@
-# ADMIN VERSION: streamlit_app_admin.py
+# PUBLIC VERSION: streamlit_app_public.py
 
 import streamlit as st
 from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, MetaData, inspect
 from sqlalchemy.orm import sessionmaker
-import pandas as pd
-import os
 
-ADMIN_MODE = True
+ADMIN_MODE = False
 
 engine = create_engine('sqlite:///registrations.db')
 metadata = MetaData()
@@ -41,12 +39,8 @@ def next_tag():
     count = session.query(registrations).count() + 1
     return f"HAMoS-{count:04d}"
 
-output_directory = r"C:\\Users\\OMODELEC\\OneDrive - Access Bank PLC\\Documents\\2025 codes"
-os.makedirs(output_directory, exist_ok=True)
-output_file = os.path.join(output_directory, "hamos_registrations.csv")
-
 def ui_header():
-    st.set_page_config("HAMoS Admin", layout="centered")
+    st.set_page_config("HAMoS Registration", layout="centered")
     st.markdown("""
         <div style='display: flex; align-items: center; justify-content: center;'>
             <img src='https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png' style='height:60px; margin-right:10px;'>
@@ -58,11 +52,32 @@ def ui_header():
         """, unsafe_allow_html=True)
 
 ui_header()
-st.header("Healing All Manner of Sickness - Admin Panel")
 
-if ADMIN_MODE and st.checkbox("Show all registrations"):
-    df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
-    st.dataframe(df)
-    st.download_button(label="Download CSV", data=df.to_csv(index=False), file_name="hamos_registrations.csv", mime="text/csv")
-    df.to_csv(output_file, index=False)
-    st.success(f"CSV saved to {output_file}")
+if "submitted" not in st.session_state:
+    st.session_state.submitted = False
+
+if not st.session_state.submitted:
+    with st.form("registration_form"):
+        phone = st.text_input("Phone", max_chars=11)
+        name = st.text_input("Full Name")
+        gender = st.selectbox("Gender", ["Male", "Female"])
+        age = st.selectbox("Age Range", ["10-20", "21-30", "31-40", "41-50", "51-60", "61-70", "70+"])
+        membership = st.selectbox("CBA Membership", ["Existing", "New"])
+        location = st.text_input("Location (Community/LGA)")
+        consent = st.checkbox("Consent to follow-up")
+        services = st.multiselect("Services", ["Prayer", "Medical", "Welfare"])
+        submitted = st.form_submit_button("Submit")
+
+    if submitted:
+        tag = next_tag()
+        ins = registrations.insert().values(
+            tag_id=tag, phone=phone, full_name=name, gender=gender,
+            age_range=age, membership=membership, location=location,
+            consent=consent, services=','.join(services)
+        )
+        session.execute(ins)
+        session.commit()
+        st.session_state.submitted = True
+        st.success(f"Thank you! Your Tag ID is {tag}")
+else:
+    st.button("Register Another", on_click=lambda: st.session_state.update(submitted=False))
