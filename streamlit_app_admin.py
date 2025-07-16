@@ -1,49 +1,15 @@
 # ADMIN VERSION: streamlit_app_admin.py
 
 import streamlit as st
-from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, MetaData, inspect
-from sqlalchemy.orm import sessionmaker
 import pandas as pd
-import os
+from sqlalchemy import create_engine, Table, MetaData
 
-ADMIN_MODE = True
-
+# Connect to the same SQLite database
 engine = create_engine('sqlite:///registrations.db')
-metadata = MetaData()
+metadata = MetaData(bind=engine)
+metadata.reflect()
 
-registrations = Table('registrations', metadata,
-    Column('id', Integer, primary_key=True),
-    Column('tag_id', String, unique=True),
-    Column('phone', String),
-    Column('full_name', String),
-    Column('gender', String),
-    Column('age_range', String),
-    Column('membership', String),
-    Column('location', String),
-    Column('consent', Boolean),
-    Column('services', String),
-    Column('medical_count', Integer, default=0),
-    Column('welfare_count', Integer, default=0),
-    Column('day2_attended', Boolean, default=False),
-    Column('day3_attended', Boolean, default=False),
-    Column('ts', DateTime, default=datetime.utcnow)
-)
-
-inspector = inspect(engine)
-if 'registrations' not in inspector.get_table_names():
-    metadata.create_all(engine)
-
-Session = sessionmaker(bind=engine)
-session = Session()
-
-def next_tag():
-    count = session.query(registrations).count() + 1
-    return f"HAMoS-{count:04d}"
-
-output_directory = r"C:\\Users\\OMODELEC\\OneDrive - Access Bank PLC\\Documents\\2025 codes"
-os.makedirs(output_directory, exist_ok=True)
-output_file = os.path.join(output_directory, "hamos_registrations.csv")
+registrations = metadata.tables['registrations']
 
 def ui_header():
     st.set_page_config("HAMoS Admin", layout="centered")
@@ -58,11 +24,19 @@ def ui_header():
         """, unsafe_allow_html=True)
 
 ui_header()
-st.header("Healing All Manner of Sickness - Admin Panel")
 
-if ADMIN_MODE and st.checkbox("Show all registrations"):
-    df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
+# Display and export data
+with engine.connect() as conn:
+    df = pd.read_sql_table('registrations', conn)
+
+if df.empty:
+    st.info("No registrations found.")
+else:
     st.dataframe(df)
-    st.download_button(label="Download CSV", data=df.to_csv(index=False), file_name="hamos_registrations.csv", mime="text/csv")
-    df.to_csv(output_file, index=False)
-    st.success(f"CSV saved to {output_file}")
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Download as CSV",
+        data=csv,
+        file_name="hamos_registrations.csv",
+        mime="text/csv"
+    )
