@@ -2,16 +2,16 @@
 
 import streamlit as st
 from datetime import datetime
-import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
+import pandas as pd
 
 # Google Sheets setup
 SHEET_ID = '1mFa47rJ7-ilULFu52PxLTo8OuxGsasveBL5N6CL4nCk'
 SHEET_NAME = 'Sheet1'
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-credentials = Credentials.from_service_account_file("cba-hamos-49c7e60ee4fb.json", scopes=SCOPES)
+credentials = Credentials.from_service_account_file("cba-hamos-5b3f3c6615e8.json", scopes=SCOPES)
 gc = gspread.authorize(credentials)
 sheet = gc.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
 
@@ -32,6 +32,11 @@ ui_header()
 if "submitted" not in st.session_state:
     st.session_state.submitted = False
 
+def next_tag():
+    records = sheet.get_all_records()
+    count = len(records) + 1
+    return f"HAMoS-{count:04d}"
+
 if not st.session_state.submitted:
     with st.form("registration_form"):
         phone = st.text_input("Phone", max_chars=11)
@@ -45,14 +50,24 @@ if not st.session_state.submitted:
         submitted = st.form_submit_button("Submit")
 
     if submitted:
-        records = sheet.get_all_records()
-        tag = f"HAMoS-{len(records) + 1:04d}"
-        now = datetime.utcnow().isoformat()
-        row = [
-            tag, phone, name, gender, age, membership, location,
-            consent, ','.join(services), 0, 0, False, False, now
+        tag = next_tag()
+        new_row = [
+            tag,
+            phone,
+            name,
+            gender,
+            age,
+            membership,
+            location,
+            int(consent),
+            ",".join(services),
+            0,
+            0,
+            0,
+            0,
+            datetime.utcnow().isoformat()
         ]
-        sheet.append_row(row)
+        sheet.append_row(new_row)
         st.session_state.submitted = True
         st.success(f"Thank you! Your Tag ID is {tag}")
 else:
