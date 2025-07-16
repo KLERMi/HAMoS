@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import sessionmaker
 import pandas as pd
 
-# SQLite database file
+# SQLite database file matching public mode
 DATABASE_URL = 'sqlite:///public_registrations.db'
 engine = create_engine(DATABASE_URL)
 metadata = MetaData()
@@ -36,8 +36,19 @@ if 'registrations' not in inspector.get_table_names():
 Session = sessionmaker(bind=engine)
 session = Session()
 
-def authenticate():
+def ui_header():
     st.set_page_config("HAMoS Admin", layout="centered")
+    st.markdown("""
+        <div style='display: flex; align-items: center; justify-content: center;'>
+            <img src='https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png' style='height:60px; margin-right:10px;'>
+            <div style='line-height: 0.8;'>
+                <h1 style='font-family: Aptos Light; font-size: 26px; color: #4472C4; margin: 0;'>Christ Base Assembly</h1>
+                <p style='font-family: Aptos Light; font-size: 14px; color: #ED7D31; margin: 0;'>winning souls, building people..</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+def authenticate():
     with st.sidebar:
         profile = st.text_input("Profile ID")
         password = st.text_input("Password", type="password")
@@ -52,9 +63,20 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
+    ui_header()
     authenticate()
 else:
+    ui_header()
     st.title("HAMoS Admin Dashboard")
+
+    with engine.connect() as conn:
+        df = pd.read_sql(select(registrations), conn)
+
+    st.subheader("Most Recent Records")
+    if not df.empty:
+        st.dataframe(df.sort_values(by="ts", ascending=False).head(10))
+    else:
+        st.info("No records available.")
 
     with st.expander("Search Records"):
         search_input = st.text_input("Enter Phone Number or Tag ID")
@@ -65,11 +87,9 @@ else:
                 )
                 result = conn.execute(query).fetchall()
                 if result:
-                    df = pd.DataFrame(result, columns=result[0].keys())
-                    st.write(df)
+                    df_search = pd.DataFrame(result, columns=result[0].keys())
+                    st.write(df_search)
                 else:
                     st.info("No matching record found.")
 
-    with engine.connect() as conn:
-        df = pd.read_sql(select(registrations), conn)
     st.download_button("Download All Registrations", data=df.to_csv(index=False).encode(), file_name="hamos_registrations.csv", mime="text/csv")
