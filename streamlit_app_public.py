@@ -3,9 +3,6 @@
 import streamlit as st
 from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, MetaData, inspect, select, func
-from sqlalchemy.orm import sessionmaker
-
-ADMIN_MODE = False
 
 engine = create_engine('sqlite:///registrations.db', connect_args={'check_same_thread': False})
 metadata = MetaData()
@@ -32,11 +29,9 @@ inspector = inspect(engine)
 if 'registrations' not in inspector.get_table_names():
     metadata.create_all(engine)
 
-Session = sessionmaker(bind=engine)
-session = Session()
-
 def next_tag():
-    count = session.execute(select(func.count()).select_from(registrations)).scalar() + 1
+    with engine.connect() as conn:
+        count = conn.execute(select(func.count()).select_from(registrations)).scalar_one() + 1
     return f"HAMoS-{count:04d}"
 
 def ui_header():
