@@ -2,7 +2,7 @@
 
 import streamlit as st
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, MetaData
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, MetaData, inspect
 from sqlalchemy.orm import sessionmaker
 import pandas as pd
 import os
@@ -29,7 +29,11 @@ registrations = Table('registrations', metadata,
     Column('day3_attended', Boolean, default=False),
     Column('ts', DateTime, default=datetime.utcnow)
 )
-metadata.create_all(engine)
+
+inspector = inspect(engine)
+if 'registrations' not in inspector.get_table_names():
+    metadata.create_all(engine)
+
 Session = sessionmaker(bind=engine)
 session = Session()
 
@@ -56,7 +60,7 @@ def ui_header():
 ui_header()
 st.header("Healing All Manner of Sickness - Admin Panel")
 
-if st.checkbox("Show all registrations"):
+if ADMIN_MODE and st.checkbox("Show all registrations"):
     df = pd.read_sql_table('registrations', 'sqlite:///registrations.db')
     st.dataframe(df)
     st.download_button(label="Download CSV", data=df.to_csv(index=False), file_name="hamos_registrations.csv", mime="text/csv")
