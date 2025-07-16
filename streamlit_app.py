@@ -48,9 +48,13 @@ def get_next_session():
 
 # Streamlit UI
 st.set_page_config("HAMoS Check-In & Ticketing", layout="centered")
-st.image("https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png")
-st.title("Christ Base Assembly")
-st.subheader("Winning souls, building people..")
+st.markdown("""
+    <div style='text-align: center;'>
+        <img src='https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png' style='height:60px; vertical-align: middle;'>
+        <h1 style='font-family: Aptos Light; font-size: 26px; display: inline; vertical-align: middle;'>Christ Base Assembly</h1>
+        <p style='font-family: Aptos Light; font-size: 14px;'>winning souls, building people..</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 st.header("Healing All Manner of Sickness - Check-In & Ticketing")
 
@@ -91,7 +95,7 @@ if mode == "Register (Day 1)":
             session.execute(ins)
             session.commit()
             st.success(f"Thank you! Your Tag ID is {tag}")
-            st.button("OK", on_click=lambda: st.experimental_rerun())
+            st.button("OK", on_click=lambda: st.session_state.clear())
 
 else:  # Check-In
     with st.form("checkin_form"):
@@ -124,4 +128,4 @@ if st.button("Export CSV"):
     st.write("CSV exported: registrations_export.csv")
 
 st.markdown("---")
-st.write("© 2025 CBA HAMoS Revival")
+st.write("© 2025 HAMoS Revival")
