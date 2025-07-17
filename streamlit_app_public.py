@@ -5,42 +5,41 @@ from datetime import datetime
 import pytz
 
 # --- Auth & Sheet Setup via Streamlit Cloud Secrets ---
-raw = st.secrets["gcp_service_account"]
-# retrieve sheet details
-sheet_id = raw["sheet_id"]
-sheet_name = raw["sheet_name"]
+creds_info = st.secrets["gcp_service_account"]
+
+# retrieve sheet details from top‐level secrets
+sheet_id   = st.secrets["sheet_id"]
+sheet_name = st.secrets["sheet_name"]
+
 # build service account info dict
 info = {
-    "type": raw.get("type"),
-    "project_id": raw.get("project_id"),
-    "private_key_id": raw.get("private_key_id"),
-    "private_key": raw.get("private_key"),
-    "client_email": raw.get("client_email"),
-    "token_uri": raw.get("token_uri"),
-    "auth_uri": raw.get("auth_uri"),
-    "auth_provider_x509_cert_url": raw.get("auth_provider_x509_cert_url"),
-    "client_x509_cert_url": raw.get("client_x509_cert_url"),
-    "client_id": raw.get("client_id"),
-    "universe_domain": raw.get("universe_domain")
+    "type":                          creds_info["type"],
+    "project_id":                    creds_info["project_id"],
+    "private_key_id":                creds_info["private_key_id"],
+    "private_key":                   creds_info["private_key"].replace("\\n", "\n").strip(),
+    "client_email":                  creds_info["client_email"],
+    "token_uri":                     creds_info["token_uri"],
+    "auth_uri":                      creds_info["auth_uri"],
+    "auth_provider_x509_cert_url":   creds_info["auth_provider_x509_cert_url"],
+    "client_x509_cert_url":          creds_info["client_x509_cert_url"],
+    "client_id":                     creds_info["client_id"],
+    "universe_domain":               creds_info["universe_domain"],
 }
-# fix private key formatting
-info["private_key"] = info["private_key"].replace("\\n", "\n").replace("\r", "").strip()
 
-# initialize Google Sheets client
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
-client = gspread.authorize(credentials)
-sheet = client.open_by_key(sheet_id).worksheet(sheet_name)
+client      = gspread.authorize(credentials)
+sheet       = client.open_by_key(sheet_id).worksheet(sheet_name)
 
 # --- Helper Functions ---
 def get_session():
     tz = pytz.timezone("Africa/Lagos")
     now = datetime.now(tz)
     sessions = [
-        (tz.localize(datetime(2025,7,18,18,0)), "Day 1 - Fri 6PM", "attended_day1"),
-        (tz.localize(datetime(2025,7,19,8,0)), "Day 2 - Sat 8AM", "attended_day2_morning"),
-        (tz.localize(datetime(2025,7,19,18,0)), "Day 2 - Sat 6PM", "attended_day2_evening"),
-        (tz.localize(datetime(2025,7,20,8,30)), "Day 3 - Sun 8:30AM", "attended_day3"),
+        (datetime(2025, 7, 18, 18, 0, tzinfo=tz), "Day 1 – Fri 6 PM",      "attended_day1"),
+        (datetime(2025, 7, 19,  8, 0, tzinfo=tz), "Day 2 – Sat 8 AM",      "attended_day2_morning"),
+        (datetime(2025, 7, 19, 18, 0, tzinfo=tz), "Day 2 – Sat 6 PM",      "attended_day2_evening"),
+        (datetime(2025, 7, 20,  8,30, tzinfo=tz), "Day 3 – Sun 8 :30 AM",   "attended_day3"),
     ]
     for dt, label, key in sessions:
         if now <= dt:
@@ -51,7 +50,7 @@ def clear_form_state():
     st.session_state.clear()
 
 # --- Header Layout ---
-col1, col2 = st.columns([1,6])
+col1, col2 = st.columns([1, 6])
 with col1:
     st.image(
         "https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png",
@@ -60,8 +59,10 @@ with col1:
 with col2:
     st.markdown(
         """
-        <h2 style='margin:0;'>Christ Base Assembly</h2>
-        <p style='font-size:0.85rem; color:#884400; margin:0;'>winning souls, building people...</p>
+        <h2 style="margin:0; font-size:30px;">Christ Base Assembly</h2>
+        <p style="margin:0; font-size:11px; color:#884400;">
+          winning souls, building people
+        </p>
         """,
         unsafe_allow_html=True
     )
@@ -76,7 +77,12 @@ st.info(f"Current/Next session: **{session_label}**")
 
 # --- Calculate Service Availability ---
 records = sheet.get_all_records()
-all_services = [s.strip() for r in records for s in r.get("services", "").split(",") if r.get("services")]
+all_services = [
+    s.strip()
+    for r in records
+    for s in (r.get("services") or "").split(",")
+    if s.strip()
+]
 remaining_medicals = max(0, 200 - all_services.count("Medicals"))
 remaining_welfare  = max(0, 200 - all_services.count("Welfare package"))
 
@@ -105,34 +111,47 @@ if checkin_mode == "New Registration":
             if not consent:
                 st.error("Consent is required to register.")
             else:
-                # generate 4-digit HAMoS serial
-                recs = sheet.get_all_records()
+                recs   = sheet.get_all_records()
                 serial = len(recs) + 1
-                tag = f"HAMoS-{serial:04d}"
-                timestamp = datetime.now(pytz.timezone("Africa/Lagos")).isoformat()
+                tag    = f"HAMoS-{serial:04d}"
+                ts     = datetime.now(pytz.timezone("Africa/Lagos")).isoformat()
                 services_csv = ",".join(services)
-                attended = {"attended_day1": "", "attended_day2_morning": "", 
-                            "attended_day2_evening": "", "attended_day3": ""}
+                attended = {
+                    "attended_day1": "", 
+                    "attended_day2_morning": "", 
+                    "attended_day2_evening": "", 
+                    "attended_day3": ""
+                }
                 attended[session_column] = "TRUE"
-                row = [tag, phone, name, gender, age, membership,
-                       location, consent, services_csv,
-                       attended["attended_day1"], attended["attended_day2_morning"],
-                       attended["attended_day2_evening"], attended["attended_day3"], timestamp]
+                row = [
+                    tag, phone, name, gender, age, membership,
+                    location, consent, services_csv,
+                    attended["attended_day1"],
+                    attended["attended_day2_morning"],
+                    attended["attended_day2_evening"],
+                    attended["attended_day3"],
+                    ts
+                ]
                 sheet.append_row(row, value_input_option="USER_ENTERED")
                 st.success(f"Thank you! Your Tag ID is {tag}")
+
     if st.button("OK"):
         clear_form_state()
         st.experimental_rerun()
 
-elif checkin_mode == "Check-In by Phone or Tag ID":
+else:  # Check-In by Phone or Tag ID
     with st.form("checkin"):
         lookup    = st.text_input("Enter Phone or Tag ID")
         submitted = st.form_submit_button("Find Record")
         if submitted:
             records = sheet.get_all_records()
             header  = sheet.row_values(1)
-            match   = next((r for r in records if str(r.get("phone")).strip() == lookup.strip() 
-                          or str(r.get("tag")).strip() == lookup.strip()), None)
+            match   = next(
+                (r for r in records
+                 if str(r.get("phone")).strip() == lookup.strip()
+                 or str(r.get("tag")).strip()   == lookup.strip()),
+                None
+            )
             if not match:
                 st.error("No matching record found.")
             else:
@@ -142,6 +161,6 @@ elif checkin_mode == "Check-In by Phone or Tag ID":
                         row_idx = records.index(match) + 2
                         col_idx = header.index(session_column) + 1
                         sheet.update_cell(row_idx, col_idx, "TRUE")
-                        st.success("Check-in successful!")
+                        st.success("Check‑in successful!")
                 else:
                     st.info("You are already checked in for this session.")
