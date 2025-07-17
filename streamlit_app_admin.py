@@ -44,7 +44,9 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- Admin Login ---
+# --- Admin Login (hard-coded multiple profiles) ---
+VALID_USERS = {"HAM1": "christbase22", "HAM2": "christbase23"}
+
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -53,11 +55,10 @@ with st.sidebar:
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
     if st.button("Login"):
-        creds = st.secrets.get("admin_credentials", {})
-        if username in creds and creds[username] == password:
+        if username in VALID_USERS and password == VALID_USERS[username]:
             st.session_state.logged_in = True
         else:
-            st.sidebar.error("Invalid credentials.")
+            st.sidebar.error("Invalid login details, please retry.")
 
 if not st.session_state.logged_in:
     st.sidebar.info("Please log in via the sidebar.")
