@@ -32,7 +32,6 @@ SCOPES = [
 ]
 credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
 gc = gspread.authorize(credentials)
-sheet = gc.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
 # … after gc = gspread.authorize(credentials) …
 
 # DEBUG: what spreadsheets can this SA see?
@@ -41,6 +40,10 @@ st.write("🔍 Accessible spreadsheets (first 20):")
 for f in files[:20]:
     st.write(f"- {f['name']}  (ID: {f['id']})")
 st.stop()
+
+sheet = gc.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
+
+
 # --- Registration Form ---
 with st.form("day1_registration", clear_on_submit=False):
     phone = st.text_input("Phone Number", max_chars=11)
