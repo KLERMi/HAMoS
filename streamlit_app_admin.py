@@ -1,114 +1,100 @@
-""import streamlit as st
+import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import datetime
-from PIL import Image
 
-# Load credentials and initialize gspread
-creds_info = st.secrets["gcp_service_account"]
-scopes = [
+# ---- PAGE SETUP ----
+st.set_page_config(page_title="HAMoS Admin", layout="centered")
+
+# ---- STYLES ----
+st.markdown("""
+    <style>
+        .title {
+            font-family: 'Aptos Light', sans-serif;
+            font-size: 26px;
+            text-align: center;
+            color: #4472C4;
+        }
+        .slogan {
+            font-family: 'Aptos Light', sans-serif;
+            font-size: 14px;
+            text-align: center;
+            color: #ED7D31;
+            margin-bottom: 20px;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# ---- HEADER ----
+st.markdown('<div class="title">Christ Base Assembly</div>', unsafe_allow_html=True)
+st.markdown('<div class="slogan">winning souls, building people..</div>', unsafe_allow_html=True)
+st.markdown("---")
+
+# ---- LOGIN ----
+with st.sidebar:
+    st.subheader("🔐 Admin Login")
+    password = st.text_input("Enter admin password", type="password")
+    login = st.button("Login")
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if login and password == st.secrets["admin_credentials"]:
+    st.session_state.logged_in = True
+elif login and password != st.secrets["admin_credentials"]:
+    st.error("Incorrect password.")
+
+if not st.session_state.logged_in:
+    st.stop()
+
+# ---- GOOGLE AUTH ----
+SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
-credentials = Credentials.from_service_account_info(creds_info, scopes=scopes)
-gc = gspread.authorize(credentials)
-
-# Load sheet
-sheet = gc.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
-
-# Set page config
-st.set_page_config(page_title="HAMoS Admin Panel", layout="centered")
-
-# Inject background image and custom styling
-st.markdown(
-    f"""
-    <style>
-        body {{
-            background-image: url('https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png');
-            background-size: 40%;
-            background-position: center center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-            background-blend-mode: lighten;
-        }}
-        .church-header {{
-            text-align: center;
-            font-family: 'Aptos Light', sans-serif;
-            margin-top: 1rem;
-            margin-bottom: 1rem;
-        }}
-        .church-name {{
-            font-size: 26px;
-            color: #4472C4;
-        }}
-        .church-slogan {{
-            font-size: 14px;
-            color: #ED7D31;
-        }}
-    </style>
-    <div class="church-header">
-        <span class="church-name">Christ Base Assembly</span><br>
-        <span class="church-slogan">winning souls, building people..</span>
-    </div>
-    """,
-    unsafe_allow_html=True
+creds = Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"], scopes=SCOPES
 )
+gc = gspread.authorize(creds)
 
-st.title("📋 Admin Check-In Panel")
+# ---- SHEET ----
+sheet = gc.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
+df = pd.DataFrame(sheet.get_all_records())
 
-search_mode = st.radio("Search by", ["Phone", "Tag ID", "Show All"])
-query = st.text_input("Enter phone number or tag ID") if search_mode != "Show All" else None
+# ---- SEARCH RECORD ----
+st.subheader("🔍 Search Attendee Record")
+query = st.text_input("Search by Tag ID or Phone Number")
 
-records = sheet.get_all_records()
-df = pd.DataFrame(records)
-
-def mark_attendance(tag_id, day):
-    idx = df[df['Tag ID'] == tag_id].index
-    if not idx.empty:
-        row = idx[0] + 2
-        sheet.update_cell(row, df.columns.get_loc(f'Day {day} Check-In') + 1, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        st.success(f"✅ Day {day} Check-in marked for {tag_id}")
-    else:
-        st.error("Tag ID not found.")
-
-def update_services(tag_id, selected_services):
-    idx = df[df['Tag ID'] == tag_id].index
-    if not idx.empty:
-        row = idx[0] + 2
-        for col in selected_services:
-            sheet.update_cell(row, df.columns.get_loc(col) + 1, "✅")
-        st.success("✅ Services provided updated.")
-
-if search_mode == "Show All":
-    st.dataframe(df)
-elif query:
-    if search_mode == "Phone":
-        result = df[df['Phone'] == query]
-    else:
-        result = df[df['Tag ID'] == query]
-
-    if not result.empty:
-        st.subheader("Result:")
-        st.dataframe(result)
-
-        tag_id = result.iloc[0]['Tag ID']
-
-        st.markdown("---")
-        st.write(f"### ✅ Check-in for {tag_id}")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("Check-in Day 2"):
-                mark_attendance(tag_id, 2)
-        with col2:
-            if st.button("Check-in Day 3"):
-                mark_attendance(tag_id, 3)
-
-        st.markdown("---")
-        st.write("### 🧾 Mark Services Provided")
-        service_cols = [col for col in df.columns if col.startswith("Service ")]
-        selected = st.multiselect("Select services provided:", service_cols)
-        if st.button("✅ Update Services"):
-            update_services(tag_id, selected)
-    else:
+if query:
+    match = df[(df['Tag ID'].str.upper() == query.upper()) | (df['Phone'] == query)]
+    if match.empty:
         st.warning("No matching record found.")
+    else:
+        record = match.iloc[0]
+        st.success("Record found:")
+        st.json(record.to_dict())
+
+        st.markdown("#### ✅ Mark Services as Provided")
+        original_services = record["Services"].split(", ")
+        provided_services = []
+
+        for service in original_services:
+            if st.checkbox(service.strip(), key=service):
+                provided_services.append(service.strip())
+
+        if st.button("Update Record"):
+            row = match.index[0] + 2  # account for header
+            col = df.columns.get_loc("Provided Services") + 1
+            sheet.update_cell(row, col, ", ".join(provided_services))
+            st.success("Record updated successfully.")
+
+# ---- DOWNLOAD DATA ----
+st.markdown("---")
+st.subheader("📥 Download All Records")
+if st.button("Download as CSV"):
+    st.download_button(
+        label="Download CSV",
+        data=df.to_csv(index=False).encode("utf-8"),
+        file_name="hamos_admin_data.csv",
+        mime="text/csv"
+    )
