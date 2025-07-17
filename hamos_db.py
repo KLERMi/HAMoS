@@ -5,15 +5,17 @@ from sqlalchemy.orm import sessionmaker
 import os
 from datetime import datetime
 
-# Use the Supabase URL directly if env var not set
-DATABASE_URL = os.getenv('DATABASE_URL',
-    'postgresql://postgres:[YOUR-PASSWORD]@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres'
+# Database URL from env var or default to your Supabase URL
+DATABASE_URL = os.getenv(
+    'DATABASE_URL',
+    'postgresql://postgres:[Wg2gdt4QQL&%dsW]@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres'
 )
 
 # Base declarative class
 Base = declarative_base()
 
 # Registration model
+define-class-model=""
 class Registration(Base):
     __tablename__ = 'registrations'
     id             = Column(Integer, primary_key=True, autoincrement=True)
@@ -31,14 +33,23 @@ class Registration(Base):
     ts             = Column(DateTime, default=datetime.utcnow)
     source         = Column(String(20))  # 'public' or 'admin'
 
-# Create engine & session factory
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(bind=engine)
+# Create engine with SSL mode required for Supabase
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"sslmode": "require"}
+)
 
-# Initialize database (create tables)
+# Session factory
+db_session = sessionmaker(bind=engine)
+
+# Initialize database (create tables if not exists)
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Warning: could not initialize DB: {e}")
 
 # Get a new session
+
 def get_session():
-    return SessionLocal()
+    return db_session()
