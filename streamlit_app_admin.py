@@ -4,11 +4,9 @@ import gspread
 import textwrap
 from google.oauth2.service_account import Credentials
 
-# --- Admin Login (from Streamlit secrets) ---
-VALID_USERS = st.secrets["admin_credentials"]
-
+# --- Login helpers ---
 def do_login():
-    if VALID_USERS.get(st.session_state.username) == st.session_state.password:
+    if VALID_USERS.get(st.session_state.login_user) == st.session_state.login_pass:
         st.session_state.logged_in = True
         st.session_state.login_error = False
     else:
@@ -17,21 +15,25 @@ def do_login():
 def do_logout():
     st.session_state.logged_in = False
 
+# --- Admin Login (from secrets) ---
+VALID_USERS = st.secrets["admin_credentials"]
+
+# Initialize session_state
 st.session_state.setdefault("logged_in", False)
 st.session_state.setdefault("login_error", False)
-st.session_state.setdefault("username", "")
-st.session_state.setdefault("password", "")
+st.session_state.setdefault("login_user", "")
+st.session_state.setdefault("login_pass", "")
 
 with st.sidebar:
     if not st.session_state.logged_in:
         st.header("Admin Login")
-        st.text_input("Username", key="username")
-        st.text_input("Password", type="password", key="password")
+        st.text_input("Username", key="login_user")
+        st.text_input("Password", type="password", key="login_pass")
         st.button("Login", on_click=do_login)
         if st.session_state.login_error:
             st.error("Invalid login details, please retry.")
     else:
-        st.write(f"👋 Logged in as **{st.session_state.username}**")
+        st.write(f"👋 Logged in as **{st.session_state.login_user}**")
         st.button("Logout", on_click=do_logout)
 
 if not st.session_state.logged_in:
@@ -55,17 +57,17 @@ st.markdown(
         height: auto;
       }
       .church-text {
-        line-height: 0.8;             /* Compact “0.8 spacing” */
+        line-height: 0.8;
       }
       .church-name {
         font-family: 'Aptos Light', sans-serif;
-        font-size: 28px;
+        font-size: 30px;            /* increased from 28 to 30 */
         color: #4472C4;
         margin: 0;
       }
       .church-slogan {
         font-family: 'Aptos Light', sans-serif;
-        font-size: 14px;
+        font-size: 11px;            /* decreased from 14 to 11 */
         color: #ED7D31;
         margin: 0;
       }
@@ -82,7 +84,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
 
 # --- Google Sheets Setup ---
 raw = st.secrets["gcp_service_account"]
@@ -105,7 +106,6 @@ sheet = (
 # --- Load DataFrame ---
 records = sheet.get_all_records()
 df = pd.DataFrame(records)
-# Ensure phone column is string
 df['phone'] = df['phone'].astype(str).str.strip()
 
 # --- Lookup & Update Services ---
@@ -113,7 +113,6 @@ st.subheader("🔍 Lookup and Update Services")
 q = st.text_input("Enter Tag ID or Phone Number").strip()
 
 if q:
-    # prepare query
     q_up = q.upper()
     filtered = df[
         (df['tag'].astype(str).str.upper() == q_up) |
@@ -145,12 +144,10 @@ if q:
                 new_idx = len(df.columns) + 1
                 sheet.update_cell(1, new_idx, col_name)
                 df[col_name] = ""
-
             row_idx = filtered.index[0] + 2
             col_idx = df.columns.get_loc(col_name) + 1
             sheet.update_cell(row_idx, col_idx, ", ".join(received))
             st.success("Updated successfully.")
-
 
 # --- Download All Records ---
 st.markdown("---")
