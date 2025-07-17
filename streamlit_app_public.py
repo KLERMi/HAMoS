@@ -1,103 +1,92 @@
 import streamlit as st
-from google.oauth2.service_account import Credentials
 import gspread
-from datetime import datetime
+from google.oauth2.service_account import Credentials
+from datetime import datetime, time
+import pytz
 
-# --- Page Config ---
-st.set_page_config(page_title="Healing All Manner of Sickness", layout="centered")
+# --- Auth & Sheet Setup ---
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+info = dict(st.secrets["gcp_service_account"])
+info["private_key"] = info["private_key"].replace("\\n", "\n")
+credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
+client = gspread.authorize(credentials)
+sheet = client.open_by_key(info["sheet_id"]).worksheet(info["sheet_name"])
 
-# --- Custom Header with updated logo URL ---
-st.markdown(
-    """
-    <div style="display: flex; align-items: center; justify-content: center;">
-        <img src="https://raw.githubusercontent.com/KLERMi/HAMoS/main/cropped_image.png"
-             alt="Event Logo"
-             width="80"
-             style="margin-right: 15px;" />
-        <div>
-            <h1 style="margin: 0; font-size: 30px;">Christ Base Assembly</h1>
-            <h4 style="margin: 0; font-size: 11px;">Winning Souls, Building People</h4>
-            <h3 style="margin: 0;">Healing All Manner of Sickness – Day 1</h3>
-            <h4 style="margin: 0;">18 Jul 2025</h4>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+# --- Helper Functions ---
+def get_session():
+    now = datetime.now(pytz.timezone("Africa/Lagos"))
+    day = now.date()
+    sessions = {
+        "2025-07-18": [(time(18, 0), "Day 1 - Fri 6PM", "attended_day1")],
+        "2025-07-19": [
+            (time(8, 0), "Day 2 - Sat 8AM", "attended_day2_morning"),
+            (time(18, 0), "Day 2 - Sat 6PM", "attended_day2_evening")
+        ],
+        "2025-07-20": [(time(8, 30), "Day 3 - Sun 8:30AM", "attended_day3")],
+    }
+    today_sessions = sessions.get(str(day), [])
+    for session_time, label, key in today_sessions:
+        if now.time() <= session_time:
+            return label, key
+    return today_sessions[-1][1:] if today_sessions else ("", "")
 
-# --- Load & Validate Secrets ---
-raw = st.secrets.get("gcp_service_account", {})
-required_keys = [
-    "type", "project_id", "private_key_id", "private_key",
-    "client_email", "token_uri", "sheet_id", "sheet_name"
-]
-missing = [k for k in required_keys if k not in raw]
-if missing:
-    st.error(f"🚨 Missing required secret keys: {missing}")
+def clear_form_state():
+    st.session_state.clear()
+
+# --- Logo/Header Layout ---
+col1, col2 = st.columns([1, 6])
+with col1:
+    st.image("https://i.imgur.com/HZ9zpEw.png", width=60)  # use real hosted logo url
+with col2:
+    st.markdown("""
+        <h2 style='margin-bottom:0;'>Christ Base Assembly</h2>
+        <p style='font-size:0.85rem; color: #884400; margin-top:0;'>winning souls, building people...</p>
+    """, unsafe_allow_html=True)
+
+st.markdown("---")
+
+# --- Get Session Info ---
+session_label, session_column = get_session()
+if not session_column:
+    st.warning("No session currently open for check-in.")
     st.stop()
 
-# --- OAuth Scopes ---
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
+# --- Main Logic ---
+checkin_mode = st.radio("Select check-in mode:", ["New Registration", "Check-In by Phone or Tag ID"])
 
-# --- Cached Google Sheet Connection ---
-@st.cache_resource
-def get_sheet():
-    info = dict(raw)  # Convert SecretProxy to dict
+if checkin_mode == "New Registration":
+    with st.form("new_reg"):
+        name = st.text_input("Full Name")
+        phone = st.text_input("Phone Number")
+        tag = f"CBA{datetime.now().strftime('%H%M%S')}"
+        submitted = st.form_submit_button("Register & Check-In")
 
-    # Fix malformed private key: convert escaped newlines to actual newlines
-    key = info["private_key"].replace("\\n", "\n").replace("\r", "").strip()
-    if not key.startswith("-----BEGIN PRIVATE KEY-----"):
-        st.error("🔐 Your private_key is malformed (missing BEGIN marker).")
-        st.stop()
-    info["private_key"] = key
+        if submitted:
+            sheet.append_row([name, phone, tag, "TRUE" if session_column == "attended_day1" else "",  # Day 1
+                              "TRUE" if "day2" in session_column and "morning" in session_column else "",  # Day 2 Morning
+                              "TRUE" if "day2" in session_column and "evening" in session_column else "",  # Day 2 Evening
+                              "TRUE" if session_column == "attended_day3" else ""],
+                             value_input_option="USER_ENTERED")
+            st.success(f"Registered successfully. Tag ID: {tag}")
+            if st.button("OK", on_click=clear_form_state):
+                pass
 
-    # Build credentials and open Google Sheet
-    credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
-    client = gspread.authorize(credentials)
-    return client.open_by_key(info["sheet_id"]).worksheet(info["sheet_name"])
+elif checkin_mode == "Check-In by Phone or Tag ID":
+    with st.form("checkin"):
+        lookup = st.text_input("Enter Phone or Tag ID")
+        submitted = st.form_submit_button("Find Record")
 
-# --- Try connecting to sheet ---
-try:
-    sheet = get_sheet()
-except Exception as e:
-    st.error(f"Could not open Google Sheet: {e}")
-    st.stop()
-
-# --- Registration Form ---
-with st.form("day1_registration", clear_on_submit=False):
-    phone      = st.text_input("Phone Number", max_chars=11)
-    name       = st.text_input("Full Name")
-    gender     = st.selectbox("Gender", ["Male", "Female"])
-    age        = st.selectbox("Age Range", ["<18", "18-25", "26-35", "36-45", "46-55", "56-65", "66+"])
-    membership = st.selectbox("CBA Membership", ["Yes", "No"])
-    location   = st.text_input("Location")
-    consent    = st.checkbox("I'm open to CBA following up to stay in touch.")
-    services   = st.multiselect(
-        "Select desired services:",
-        ["Medical ≤200", "Welfare ≤200", "Counseling", "Prayer"]
-    )
-    submitted = st.form_submit_button("Submit")
-
-    if submitted:
-        if not consent:
-            st.error("Consent is required to register.")
-        else:
-            try:
-                records = sheet.get_all_records()
-                tag = f"HAMoS-{len(records) + 1:04d}"
-                timestamp = datetime.utcnow().isoformat()
-                services_csv = ",".join(services)
-                row = [
-                    tag, phone, name, gender, age, membership,
-                    location, consent, services_csv,
-                    False, False, timestamp
-                ]
-                sheet.append_row(row)
-                st.success(f"Thank you! Your Tag ID is {tag}")
-                if st.button("Register Another"):
-                    st.experimental_rerun()
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
+        if submitted:
+            records = sheet.get_all_records()
+            match = next((r for r in records if r["phone"] == lookup or r["tag"] == lookup), None)
+            if not match:
+                st.error("No matching record found.")
+            else:
+                st.success(f"Welcome {match['name']}!")
+                if not match.get(session_column):
+                    if st.form_submit_button("Check In Now"):
+                        row_index = records.index(match) + 2  # account for header
+                        sheet.update_cell(row_index, list(match.keys()).index(session_column) + 1, "TRUE")
+                        st.success("Check-in successful!")
+                else:
+                    st.info("You are already checked in for this session.")
