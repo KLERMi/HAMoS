@@ -19,7 +19,6 @@ DATABASE_URL = os.getenv('DATABASE_URL', DEFAULT_DB_URL)
 Base = declarative_base()
 
 # Registration model
-define_class_model=""
 class Registration(Base):
     __tablename__ = 'registrations'
     id            = Column(Integer, primary_key=True, autoincrement=True)
@@ -40,7 +39,7 @@ class Registration(Base):
 # Create engine with SSL mode required
 engine = create_engine(
     DATABASE_URL,
-    connect_args={'ssl': {'sslmode': 'require'}}
+    connect_args={"sslmode": "require"}
 )
 
 # Session factory
