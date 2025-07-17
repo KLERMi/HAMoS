@@ -29,7 +29,6 @@ def get_session():
 
 def clear_form_state():
     st.session_state.clear()
-    st.experimental_rerun()
 
 # --- Logo/Header Layout ---
 col1, col2 = st.columns([1,6])
@@ -108,8 +107,9 @@ if checkin_mode == "New Registration":
                        attended["attended_day2_evening"], attended["attended_day3"], timestamp]
                 sheet.append_row(row, value_input_option="USER_ENTERED")
                 st.success(f"Thank you! Your Tag ID is {tag}")
-    if st.button("OK", on_click=clear_form_state):
-        pass
+    if st.button("OK"):
+        clear_form_state()
+        st.experimental_rerun()
 
 elif checkin_mode == "Check-In by Phone or Tag ID":
     with st.form("checkin"):
