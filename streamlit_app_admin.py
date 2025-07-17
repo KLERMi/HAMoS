@@ -44,16 +44,10 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- Debug: Inspect secrets and creds_info ---
-st.write("🔑 Available secrets keys:", list(st.secrets.keys()))
-creds_info = st.secrets.get("gcp_service_account", {})
-st.write("🔑 GCP service_account info keys:", list(creds_info.keys()))
-st.write("🔑 Private key preview (first 100 chars):", repr(creds_info.get("private_key","")[:100]))
-st.stop()
-
 # --- Admin Login ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+
 with st.sidebar:
     st.header("Admin Login")
     username = st.text_input("Username")
@@ -64,6 +58,7 @@ with st.sidebar:
             st.session_state.logged_in = True
         else:
             st.sidebar.error("Invalid credentials.")
+
 if not st.session_state.logged_in:
     st.sidebar.info("Please log in via the sidebar.")
     st.stop()
@@ -78,8 +73,8 @@ credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
 gc = gspread.authorize(credentials)
 
 # Retrieve sheet config from secrets
-sheet_id = st.secrets["sheet_id"]
-sheet_name = st.secrets["sheet_name"]  # should be "Registrations"
+sheet_id = st.secrets.get("sheet_id")
+sheet_name = st.secrets.get("sheet_name")  # should be 'Registrations'
 try:
     sheet = gc.open_by_key(sheet_id).worksheet(sheet_name)
 except Exception as e:
@@ -90,7 +85,7 @@ except Exception as e:
 records = sheet.get_all_records()
 df = pd.DataFrame(records)
 
-# --- Search & Display Record ---
+# --- Search & Update Attendee Services ---
 st.subheader("🔍 Search & Update Attendee Services")
 query = st.text_input("Enter Tag ID or Phone Number to fetch record")
 if query:
@@ -103,11 +98,13 @@ if query:
         services = rec.get('services', '').split(',') if rec.get('services') else []
         for svc in services:
             st.write(f"- {svc.strip()}")
+
         st.markdown("**Mark Provided Services:**")
         provided = []
         for svc in services:
             if st.checkbox(svc.strip(), key=svc):
                 provided.append(svc.strip())
+
         if st.button("Submit Services Update"):
             # Ensure 'Provided Services' column exists
             if 'Provided Services' not in df.columns:
@@ -122,7 +119,7 @@ if query:
             sheet.update_cell(row_idx, col_idx, ", ".join(provided))
             st.success("Provided Services updated successfully.")
 
-# --- Download Data ---
+# --- Download All Records ---
 st.markdown("---")
 st.subheader("📥 Download All Records")
 csv = df.to_csv(index=False).encode('utf-8')
