@@ -1,5 +1,7 @@
 streamlit==1.25.0
 SQLAlchemy==2.0.15
+# bump to a pg8000 release that supports 3.13:
 pg8000==1.31.2
 pandas==2.0.3
+# pin Pillow to the last wheel‐ready version:
 pillow==9.4.0
