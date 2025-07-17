@@ -29,6 +29,7 @@ def get_session():
 
 def clear_form_state():
     st.session_state.clear()
+    st.experimental_rerun()
 
 # --- Logo/Header Layout ---
 col1, col2 = st.columns([1,6])
@@ -79,7 +80,6 @@ if checkin_mode == "New Registration":
         membership = st.selectbox("CBA Membership", ["Yes","No"])
         location   = st.text_input("Location")
         consent    = st.checkbox("I'm open to CBA following up to stay in touch.")
-        # Services with availability enforcement, counts hidden
         service_options = []
         if remaining_medicals > 0:
             service_options.append("Medicals")
@@ -93,7 +93,10 @@ if checkin_mode == "New Registration":
             if not consent:
                 st.error("Consent is required to register.")
             else:
-                tag = f"CBA-{datetime.now().strftime('%H%M%S')}"
+                # Generate sequential 4-digit HAMoS- serial
+                recs = sheet.get_all_records()
+                serial = len(recs) + 1
+                tag = f"HAMoS-{serial:04d}"
                 timestamp = datetime.now(pytz.timezone("Africa/Lagos")).isoformat()
                 services_csv = ",".join(services)
                 attended = {"attended_day1":"","attended_day2_morning":"",
