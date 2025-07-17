@@ -1,75 +1,114 @@
-# streamlit_app_public.py
-
-import streamlit as st
-from google.oauth2.service_account import Credentials
-import gspread
+""import streamlit as st
 import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
 from datetime import datetime
+from PIL import Image
 
-# --- Page config & header ---
-st.set_page_config(
-    page_title="Healing All Manner of Sickness Registration",
-    layout="centered"
-)
+# Load credentials and initialize gspread
+creds_info = st.secrets["gcp_service_account"]
+scopes = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
+credentials = Credentials.from_service_account_info(creds_info, scopes=scopes)
+gc = gspread.authorize(credentials)
 
-# Custom header with logo and title
+# Load sheet
+sheet = gc.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
+
+# Set page config
+st.set_page_config(page_title="HAMoS Admin Panel", layout="centered")
+
+# Inject background image and custom styling
 st.markdown(
-    """
-    <div style="text-align:center">
-        <img src="https://example.com/logo.png" alt="Event Logo" width="100" /><br>
-        <h1>Healing All Manner of Sickness</h1>
-        <h3>Day 1 Registration (18 Jul 2025)</h3>
+    f"""
+    <style>
+        body {{
+            background-image: url('https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png');
+            background-size: 40%;
+            background-position: center center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            background-blend-mode: lighten;
+        }}
+        .church-header {{
+            text-align: center;
+            font-family: 'Aptos Light', sans-serif;
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+        }}
+        .church-name {{
+            font-size: 26px;
+            color: #4472C4;
+        }}
+        .church-slogan {{
+            font-size: 14px;
+            color: #ED7D31;
+        }}
+    </style>
+    <div class="church-header">
+        <span class="church-name">Christ Base Assembly</span><br>
+        <span class="church-slogan">winning souls, building people..</span>
     </div>
     """,
     unsafe_allow_html=True
 )
 
-# --- Load Google Sheets client from secrets ---
-creds_info = st.secrets["gcp_service_account"]  # service account credentials
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
-gc = gspread.authorize(credentials)
-sheet = gc.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
+st.title("📋 Admin Check-In Panel")
 
-# --- Registration Form ---
-with st.form("day1_registration", clear_on_submit=False):
-    phone = st.text_input("Phone Number", max_chars=11)
-    name = st.text_input("Full Name")
-    gender = st.selectbox("Gender", ["Male", "Female", "Other"])
-    age = st.selectbox("Age Range", ["<18", "18-25", "26-35", "36-45", "46+"])
-    membership = st.selectbox("CBA Membership", ["Yes", "No"])
-    location = st.text_input("Location")
-    consent = st.checkbox("I consent to data processing.")
-    services = st.multiselect(
-        "Select desired services:",
-        ["Medical ≤200", "Welfare ≤200", "Counseling", "Prayer"]
-    )
-    submitted = st.form_submit_button("Submit")
+search_mode = st.radio("Search by", ["Phone", "Tag ID", "Show All"])
+query = st.text_input("Enter phone number or tag ID") if search_mode != "Show All" else None
 
-    if submitted:
-        if not consent:
-            st.error("Consent is required to register.")
-        else:
-            # generate Tag ID
-            records = sheet.get_all_records()
-            tag = f"HAMoS-{len(records)+1:04d}"
-            timestamp = datetime.utcnow().isoformat()
-            services_csv = ",".join(services)
-            row = [
-                tag,
-                phone,
-                name,
-                gender,
-                age,
-                membership,
-                location,
-                consent,
-                services_csv,
-                False,  # attended_day2
-                False,  # attended_day3
-                timestamp
-            ]
-            sheet.append_row(row)
-            st.success(f"Thank you! Your Tag ID is {tag}")
-            if st.button("Register Another"):
-                st.experimental_rerun()
+records = sheet.get_all_records()
+df = pd.DataFrame(records)
+
+def mark_attendance(tag_id, day):
+    idx = df[df['Tag ID'] == tag_id].index
+    if not idx.empty:
+        row = idx[0] + 2
+        sheet.update_cell(row, df.columns.get_loc(f'Day {day} Check-In') + 1, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        st.success(f"✅ Day {day} Check-in marked for {tag_id}")
+    else:
+        st.error("Tag ID not found.")
+
+def update_services(tag_id, selected_services):
+    idx = df[df['Tag ID'] == tag_id].index
+    if not idx.empty:
+        row = idx[0] + 2
+        for col in selected_services:
+            sheet.update_cell(row, df.columns.get_loc(col) + 1, "✅")
+        st.success("✅ Services provided updated.")
+
+if search_mode == "Show All":
+    st.dataframe(df)
+elif query:
+    if search_mode == "Phone":
+        result = df[df['Phone'] == query]
+    else:
+        result = df[df['Tag ID'] == query]
+
+    if not result.empty:
+        st.subheader("Result:")
+        st.dataframe(result)
+
+        tag_id = result.iloc[0]['Tag ID']
+
+        st.markdown("---")
+        st.write(f"### ✅ Check-in for {tag_id}")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("Check-in Day 2"):
+                mark_attendance(tag_id, 2)
+        with col2:
+            if st.button("Check-in Day 3"):
+                mark_attendance(tag_id, 3)
+
+        st.markdown("---")
+        st.write("### 🧾 Mark Services Provided")
+        service_cols = [col for col in df.columns if col.startswith("Service ")]
+        selected = st.multiselect("Select services provided:", service_cols)
+        if st.button("✅ Update Services"):
+            update_services(tag_id, selected)
+    else:
+        st.warning("No matching record found.")
