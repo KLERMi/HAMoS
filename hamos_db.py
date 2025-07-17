@@ -5,38 +5,42 @@ from sqlalchemy.orm import sessionmaker
 import os
 from datetime import datetime
 
-# Database URL from env var or default to your Supabase URL
-DATABASE_URL = os.getenv(
-    'DATABASE_URL',
-    'postgresql+pg8000://postgres:[Wg2gdt4QQL&%dsW]@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres'
+# URL-encode special chars in password: & -> %26, % -> %25
+DEFAULT_DB_URL = (
+    'postgresql+pg8000://'
+    'postgres:Wg2gdt4QQL%26%25dsW'
+    '@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres'
 )
+
+# Allow override via environment
+DATABASE_URL = os.getenv('DATABASE_URL', DEFAULT_DB_URL)
 
 # Base declarative class
 Base = declarative_base()
 
 # Registration model
-
+define_class_model=""
 class Registration(Base):
     __tablename__ = 'registrations'
-    id             = Column(Integer, primary_key=True, autoincrement=True)
-    tag_id         = Column(String(12), unique=True)
-    phone          = Column(String(11))
-    name           = Column(String(100))
-    gender         = Column(String(10))
-    age_range      = Column(String(10))
-    membership     = Column(String(10))
-    location       = Column(String(100))
-    consent        = Column(Boolean)
-    services       = Column(Text)
-    day2_attended  = Column(Boolean, default=False)
-    day3_attended  = Column(Boolean, default=False)
-    ts             = Column(DateTime, default=datetime.utcnow)
-    source         = Column(String(20))  # 'public' or 'admin'
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    tag_id        = Column(String(12), unique=True)
+    phone         = Column(String(11))
+    name          = Column(String(100))
+    gender        = Column(String(10))
+    age_range     = Column(String(10))
+    membership    = Column(String(10))
+    location      = Column(String(100))
+    consent       = Column(Boolean)
+    services      = Column(Text)
+    day2_attended = Column(Boolean, default=False)
+    day3_attended = Column(Boolean, default=False)
+    ts            = Column(DateTime, default=datetime.utcnow)
+    source        = Column(String(20))  # 'public' or 'admin'
 
-# Create engine with SSL mode required for Supabase
+# Create engine with SSL mode required
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"sslmode": "require"}
+    connect_args={'ssl': {'sslmode': 'require'}}
 )
 
 # Session factory
@@ -50,6 +54,5 @@ def init_db():
         print(f"Warning: could not initialize DB: {e}")
 
 # Get a new session
-
 def get_session():
     return db_session()
