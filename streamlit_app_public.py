@@ -45,12 +45,18 @@ SCOPES = [
 # --- Cached Google Sheet Connection ---
 @st.cache_resource
 def get_sheet():
-    creds_local = st.secrets["gcp_service_account"]
-    credentials = Credentials.from_service_account_info(creds_local, scopes=SCOPES)
+    # 1) Pull your secret block
+    raw = st.secrets["gcp_service_account"]
+    # 2) Make a mutable copy and fix newlines
+    info = dict(raw)
+    info["private_key"] = info["private_key"].replace("\\n", "\n")
+    # 3) Build credentials & client
+    credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
     client = gspread.authorize(credentials)
-    return client.open_by_key(creds_local["sheet_id"]) \
-                 .worksheet(creds_local["sheet_name"])
+    return client.open_by_key(info["sheet_id"]) \
+                 .worksheet(info["sheet_name"])
 
+# — Connect (or stop with an error) —
 try:
     sheet = get_sheet()
 except Exception as e:
