@@ -22,6 +22,11 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+import streamlit as st
+
+creds_info = st.secrets["gcp_service_account"]
+st.write("🔑 Debug: using service‑account email:", creds_info["client_email"])
+st.stop()  # stop here so you can see it
 
 # --- Load Google Sheets client from secrets ---
 creds_info = st.secrets["gcp_service_account"]  # service account credentials
