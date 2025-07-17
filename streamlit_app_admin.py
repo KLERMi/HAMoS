@@ -32,6 +32,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 # --- Header ---
 st.markdown(
     """
@@ -53,16 +54,17 @@ with st.sidebar:
     st.header("Admin Login")
     user = st.text_input("Username")
     pwd = st.text_input("Password", type="password")
-    if st.button("Login"):
-        creds = st.secrets["admin_credentials"]
-        if user in creds and pwd == creds[user]:
-            st.session_state.logged_in = True
-            st.experimental_rerun()
-        else:
-            st.error("Invalid credentials.")
+    login_clicked = st.button("Login")
+
+if login_clicked:
+    creds = st.secrets["admin_credentials"]
+    if user in creds and pwd == creds[user]:
+        st.session_state.logged_in = True
+    else:
+        st.sidebar.error("Invalid credentials.")
 
 if not st.session_state.logged_in:
-    st.info("Please log in via the sidebar.")
+    st.sidebar.info("Please log in via the sidebar.")
     st.stop()
 
 # --- Google Sheets setup ---
