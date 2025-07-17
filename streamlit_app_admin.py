@@ -6,30 +6,42 @@ import gspread
 import textwrap
 from google.oauth2.service_account import Credentials
 
+# --- Helpers for login ---
+def do_login():
+    """Callback for the Login button."""
+    if VALID_USERS.get(st.session_state.username) == st.session_state.password:
+        st.session_state.logged_in = True
+        st.session_state.login_error = False
+    else:
+        st.session_state.login_error = True
+
+def do_logout():
+    """Callback for Logout."""
+    st.session_state.logged_in = False
+
 # --- Admin Login (from Streamlit secrets) ---
 VALID_USERS = st.secrets["admin_credentials"]
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+# Initialize session_state vars
+st.session_state.setdefault("logged_in", False)
+st.session_state.setdefault("login_error", False)
+st.session_state.setdefault("username", "")
+st.session_state.setdefault("password", "")
 
-# Only show login UI when not yet logged in
 with st.sidebar:
     if not st.session_state.logged_in:
         st.header("Admin Login")
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        if st.button("Login"):
-            if VALID_USERS.get(username) == password:
-                st.session_state.logged_in = True
-                st.experimental_rerun()
-            else:
-                st.error("Invalid login, please retry.")
+        # Bind inputs to session_state so callback can see them
+        st.session_state.username = st.text_input("Username", key="username_input")
+        st.session_state.password = st.text_input("Password", type="password", key="password_input")
+        st.button("Login", on_click=do_login)
+        if st.session_state.login_error:
+            st.error("Invalid login details, please retry.")
     else:
-        # Optionally: allow logout
-        if st.button("Logout"):
-            st.session_state.logged_in = False
-            st.experimental_rerun()
+        st.write(f"👋 Logged in as **{st.session_state.username}**")
+        st.button("Logout", on_click=do_logout)
 
+# Stop execution until logged in
 if not st.session_state.logged_in:
     st.stop()
 
@@ -79,7 +91,6 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets",
           "https://www.googleapis.com/auth/drive"]
 credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
 gc = gspread.authorize(credentials)
-
 sheet = gc.open_by_key(st.secrets["sheet_id"])\
           .worksheet(st.secrets["sheet_name"])
 
@@ -87,9 +98,8 @@ sheet = gc.open_by_key(st.secrets["sheet_id"])\
 records = sheet.get_all_records()
 df = pd.DataFrame(records)
 
-# --- Search & Update Attendee Services ---
+# --- Lookup & Update Services ---
 st.subheader("🔍 Lookup and Update Services")
-
 q = st.text_input("Enter Tag ID or Phone Number")
 if q:
     q_up = q.strip().upper()
@@ -97,7 +107,6 @@ if q:
         (df['tag'].str.upper() == q_up) |
         (df['phone'] == q.strip())
     ]
-
     if filtered.empty:
         st.warning("No matching record found.")
     else:
@@ -115,15 +124,12 @@ if q:
                 received.append(svc.strip())
 
         if st.button("Submit Update"):
-            # Ensure column exists
             col_name = "Services Received"
             if col_name not in df.columns:
                 sheet.add_cols(1)
                 new_idx = len(df.columns) + 1
                 sheet.update_cell(1, new_idx, col_name)
                 df[col_name] = ""
-
-            # Write back to sheet
             row_idx = filtered.index[0] + 2
             col_idx = df.columns.get_loc(col_name) + 1
             sheet.update_cell(row_idx, col_idx, ", ".join(received))
