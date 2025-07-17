@@ -1,3 +1,5 @@
+# streamlit_app_admin.py
+
 import streamlit as st
 import pandas as pd
 import gspread
@@ -10,18 +12,25 @@ VALID_USERS = st.secrets["admin_credentials"]
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
+# Only show login UI when not yet logged in
 with st.sidebar:
-    st.header("Admin Login")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        if VALID_USERS.get(username) == password:
-            st.session_state.logged_in = True
-        else:
-            st.sidebar.error("Invalid login details, please retry.")
+    if not st.session_state.logged_in:
+        st.header("Admin Login")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        if st.button("Login"):
+            if VALID_USERS.get(username) == password:
+                st.session_state.logged_in = True
+                st.experimental_rerun()
+            else:
+                st.error("Invalid login, please retry.")
+    else:
+        # Optionally: allow logout
+        if st.button("Logout"):
+            st.session_state.logged_in = False
+            st.experimental_rerun()
 
 if not st.session_state.logged_in:
-    st.sidebar.info("Please log in via the sidebar.")
     st.stop()
 
 
@@ -70,6 +79,7 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets",
           "https://www.googleapis.com/auth/drive"]
 credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
 gc = gspread.authorize(credentials)
+
 sheet = gc.open_by_key(st.secrets["sheet_id"])\
           .worksheet(st.secrets["sheet_name"])
 
@@ -78,58 +88,49 @@ records = sheet.get_all_records()
 df = pd.DataFrame(records)
 
 # --- Search & Update Attendee Services ---
-st.subheader("🔍 Search & Update Attendee Services")
+st.subheader("🔍 Lookup and Update Services")
 
-# Only two search inputs:
-query_tag   = st.text_input("Tag ID")
-query_phone = st.text_input("Phone Number")
-
-if query_tag or query_phone:
-    filtered = df.copy()
-    if query_tag:
-        filtered = filtered[filtered['tag'].str.upper() == query_tag.upper()]
-    if query_phone:
-        filtered = filtered[filtered['phone'] == query_phone]
+q = st.text_input("Enter Tag ID or Phone Number")
+if q:
+    q_up = q.strip().upper()
+    filtered = df[
+        (df['tag'].str.upper() == q_up) |
+        (df['phone'] == q.strip())
+    ]
 
     if filtered.empty:
         st.warning("No matching record found.")
     else:
         rec = filtered.iloc[0]
-
-        # Show Name + Registered Services
         st.markdown(f"**Name:** {rec.get('name', '—')}")
         st.markdown("**Registered Services:**")
         services = rec.get('services', '').split(',') if rec.get('services') else []
         for svc in services:
             st.write(f"- {svc.strip()}")
 
-        st.markdown("**Mark Provided Services:**")
-        provided = []
+        st.markdown("**Mark Services Received:**")
+        received = []
         for svc in services:
             if st.checkbox(svc.strip(), key=svc):
-                provided.append(svc.strip())
+                received.append(svc.strip())
 
-        if st.button("Submit Services Update"):
-            # If column missing, add header only
-            if 'Provided Services' not in df.columns:
+        if st.button("Submit Update"):
+            # Ensure column exists
+            col_name = "Services Received"
+            if col_name not in df.columns:
                 sheet.add_cols(1)
-                new_col_idx = len(df.columns) + 1
-                sheet.update_cell(1, new_col_idx, 'Provided Services')
-                df['Provided Services'] = ''
+                new_idx = len(df.columns) + 1
+                sheet.update_cell(1, new_idx, col_name)
+                df[col_name] = ""
 
-            # Update the cell
+            # Write back to sheet
             row_idx = filtered.index[0] + 2
-            col_idx = df.columns.get_loc('Provided Services') + 1
-            sheet.update_cell(row_idx, col_idx, ", ".join(provided))
-            st.success("Provided Services updated successfully.")
+            col_idx = df.columns.get_loc(col_name) + 1
+            sheet.update_cell(row_idx, col_idx, ", ".join(received))
+            st.success("Updated successfully.")
 
 # --- Download All Records ---
 st.markdown("---")
 st.subheader("📥 Download All Records")
 csv = df.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="Download CSV",
-    data=csv,
-    file_name="hamos_admin_data.csv",
-    mime="text/csv"
-)
+st.download_button("Download CSV", csv, "hamos_admin_data.csv", "text/csv")
