@@ -1,4 +1,7 @@
 # streamlit_app_public.py
+import streamlit as st
+st.write("Current secrets keys:", list(st.secrets.keys()))
+st.stop()
 
 import streamlit as st
 from google.oauth2.service_account import Credentials
