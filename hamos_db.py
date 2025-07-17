@@ -5,9 +5,10 @@ from sqlalchemy.orm import sessionmaker
 import os
 from datetime import datetime
 
-# URL-encoded Supabase connection string (special chars encoded)
+# Default Supabase connection string (percent-encoded password) using psycopg2 driver
+# DSN: postgresql://postgres:Wg2gdt4QQL&%25dsW@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres
 DEFAULT_DB_URL = (
-    'postgresql+pg8000://'
+    'postgresql+psycopg2://'
     'postgres:Wg2gdt4QQL%26%25dsW'
     '@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres'
 )
@@ -19,6 +20,7 @@ DATABASE_URL = os.getenv('DATABASE_URL', DEFAULT_DB_URL)
 Base = declarative_base()
 
 # Registration model
+defining_table = 'registrations'
 class Registration(Base):
     __tablename__ = 'registrations'
     id            = Column(Integer, primary_key=True, autoincrement=True)
@@ -51,8 +53,24 @@ def init_db():
     """
     Base.metadata.create_all(bind=engine)
 
+
 def get_session():
     """
     Obtain a new database session.
     """
     return SessionLocal()
+
+
+def test_db_connection():
+    """
+    Attempt a simple health-check query to validate connectivity.
+    Returns True if the database version is fetched successfully.
+    """
+    try:
+        with engine.connect() as conn:
+            version = conn.execute('SELECT version()').scalar()
+            print(f"Connected successfully: {version}")
+        return True
+    except Exception as e:
+        print(f"Database connection failed: {e}")
+        return False
