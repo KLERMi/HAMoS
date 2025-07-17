@@ -3,6 +3,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 import pytz
+import re
 
 # --- Auth & Sheet Setup ---
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -27,6 +28,7 @@ def get_session():
             return label, key
     return None, None
 
+
 def clear_form_state():
     st.session_state.clear()
 
@@ -42,8 +44,7 @@ with col2:
         """
         <h2 style='margin-bottom:0;'>Christ Base Assembly</h2>
         <p style='font-size:0.85rem; color:#884400; margin-top:0;'>winning souls, building people...</p>
-        """,
-        unsafe_allow_html=True
+        """, unsafe_allow_html=True
     )
 st.markdown("---")
 
@@ -79,7 +80,6 @@ if checkin_mode == "New Registration":
         membership = st.selectbox("CBA Membership", ["Yes","No"])
         location   = st.text_input("Location")
         consent    = st.checkbox("I'm open to CBA following up to stay in touch.")
-        # Services with availability enforcement, counts hidden
         service_options = []
         if remaining_medicals > 0:
             service_options.append("Medicals")
@@ -93,7 +93,12 @@ if checkin_mode == "New Registration":
             if not consent:
                 st.error("Consent is required to register.")
             else:
-                tag = f"CBA-{datetime.now().strftime('%H%M%S')}"
+                # Generate sequential HAMoS-#### tag
+                existing_tags = [r.get('tag','') for r in records]
+                nums = [int(re.search(r'HAMoS-(\d{4})', t).group(1)) for t in existing_tags if re.match(r'HAMoS-\d{4}', t)]
+                next_num = max(nums) + 1 if nums else 1
+                tag = f"HAMoS-{next_num:04d}"
+
                 timestamp = datetime.now(pytz.timezone("Africa/Lagos")).isoformat()
                 services_csv = ",".join(services)
                 attended = {"attended_day1":"","attended_day2_morning":"",
