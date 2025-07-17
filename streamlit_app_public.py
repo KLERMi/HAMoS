@@ -6,10 +6,23 @@ import pytz
 
 # --- Auth & Sheet Setup via Streamlit Cloud Secrets ---
 raw = st.secrets["gcp_service_account"]
-info = dict(raw)
-# extract sheet configuration
-sheet_id = info.pop("sheet_id")
-sheet_name = info.pop("sheet_name")
+# retrieve sheet details
+sheet_id = raw["sheet_id"]
+sheet_name = raw["sheet_name"]
+# build service account info dict
+info = {
+    "type": raw.get("type"),
+    "project_id": raw.get("project_id"),
+    "private_key_id": raw.get("private_key_id"),
+    "private_key": raw.get("private_key"),
+    "client_email": raw.get("client_email"),
+    "token_uri": raw.get("token_uri"),
+    "auth_uri": raw.get("auth_uri"),
+    "auth_provider_x509_cert_url": raw.get("auth_provider_x509_cert_url"),
+    "client_x509_cert_url": raw.get("client_x509_cert_url"),
+    "client_id": raw.get("client_id"),
+    "universe_domain": raw.get("universe_domain")
+}
 # fix private key formatting
 info["private_key"] = info["private_key"].replace("\\n", "\n").replace("\r", "").strip()
 
