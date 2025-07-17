@@ -39,6 +39,7 @@ st.markdown(
       color: #4472C4;
       line-height: 0.8;
       margin: 0;
+      text-align: center;
     }
     .church-slogan {
       font-family: 'Aptos Light', sans-serif;
@@ -46,11 +47,12 @@ st.markdown(
       color: #ED7D31;
       line-height: 0.8;
       margin: 0;
+      text-align: center;
     }
     .header-flex {
-      display: flex; 
-      align-items: center; 
-      justify-content: center; 
+      display: flex;
+      align-items: center;
+      justify-content: center;
       gap: 1rem;
       margin-bottom: 1rem;
     }
@@ -65,11 +67,9 @@ st.markdown(
     <div class="header-flex">
       <img src="https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png"
            width="80" />
-      <div style="text-align:center;">
-        <p class="church-name">Christ Base Assembly</p>
-        <p class="church-slogan">winning souls, building people..</p>
-      </div>
     </div>
+    <p class="church-name">Christ Base Assembly</p>
+    <p class="church-slogan">winning souls, building people..</p>
     """,
     unsafe_allow_html=True
 )
@@ -109,10 +109,10 @@ else:
 if wel_count < 200:
     service_options.insert(1, "Welfare")
 else:
-    st.markdown("<span style='color:lightgray'>Welfare (Sold Out)</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color:lightgray'>Welfare (Sold Out)</span>"), unsafe_allow_html=True)
 
 # --- Registration Form ---
-with st.form("day1_registration", clear_on_submit=False):
+with st.form("day1_registration", clear_on_submit=True):
     phone = st.text_input("Phone Number", max_chars=11)
     name = st.text_input("Full Name")
     gender = st.selectbox("Gender", ["Male", "Female", "Other"])
@@ -124,7 +124,7 @@ with st.form("day1_registration", clear_on_submit=False):
     location = st.text_input("Location")
     consent = st.checkbox("I consent to data processing.")
     services = st.multiselect("Select desired services:", service_options)
-    submitted = st.form_submit_button("Submit")
+    submitted = st.form_submit_button("Register Another")
 
 # --- Post‑submit handling outside form ---
 if submitted:
@@ -143,6 +143,4 @@ if submitted:
         sheet.append_row(row)
 
         st.success(f"✅ Your Tag ID is **{tag}**")
-        st.info("Copy your Tag ID, then click **OK** to register another.")
-        if st.button("OK"):
-            st.experimental_rerun()
+        # Form auto-cleared; user can register next directly
