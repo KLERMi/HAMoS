@@ -1,74 +1,75 @@
-# streamlit_app_admin.py
+# streamlit_app_public.py
+
 import streamlit as st
+from google.oauth2.service_account import Credentials
+import gspread
 import pandas as pd
-from hamos_db import init_db, get_session, Registration
+from datetime import datetime
 
-# Initialize the shared database
-init_db()
-
-# Page configuration
-st.set_page_config(page_title="HAMoS Admin", layout="centered")
-
-# Header banner
-st.markdown("""
-<div style='display:flex; align-items:center; justify-content:center;'>
-  <img src='https://raw.githubusercontent.com/KLERMi/HAMoS/main/cropped_image.png' style='height:60px; margin-right:10px;'>
-  <div style='line-height:0.8;'>
-    <h1 style='font-family:Aptos Light; font-size:26px; color:#4472C4; margin:0;'>Christ Base Assembly</h1>
-    <p style='font-family:Aptos Light; font-size:14px; color:#ED7D31; margin:0;'>winning souls, building people..</p>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-# Authentication
-def authenticate():
-    if 'logged_in' not in st.session_state:
-        st.session_state.logged_in = False
-    with st.sidebar:
-        profile = st.text_input("Profile ID")
-        pwd     = st.text_input("Password", type="password")
-        if st.button("Login"):
-            if (profile, pwd) in [("HAM1","christbase22"),("HAM2","christbase23")]:
-                st.session_state.logged_in = True
-            else:
-                st.error("Invalid credentials")
-    if not st.session_state.logged_in:
-        st.stop()
-
-authenticate()
-
-# Fetch recent registrations
-db = get_session()
-records = db.query(Registration).order_by(Registration.ts.desc()).limit(10).all()
-df_recent = pd.DataFrame([r.__dict__ for r in records]).drop(columns=['_sa_instance_state'])
-
-st.title("HAMoS Admin Dashboard")
-st.subheader("Recent Registrations")
-if df_recent.empty:
-    st.info("No records yet.")
-else:
-    st.dataframe(df_recent)
-
-# Search functionality
-with st.expander("Search Records"):
-    query = st.text_input("Phone or Tag ID")
-    if st.button("Search"):
-        results = db.query(Registration).filter(
-            (Registration.phone == query) | (Registration.tag_id == query)
-        ).all()
-        df_search = pd.DataFrame([r.__dict__ for r in results]).drop(columns=['_sa_instance_state'])
-        if df_search.empty:
-            st.info("No matching record found.")
-        else:
-            st.write(df_search)
-
-# Download all registrations
-all_recs = db.query(Registration).all()
-df_all = pd.DataFrame([r.__dict__ for r in all_recs]).drop(columns=['_sa_instance_state'])
-
-st.download_button(
-    label="Download All Registrations",
-    data=df_all.to_csv(index=False).encode(),
-    file_name="hamos_registrations.csv",
-    mime="text/csv"
+# --- Page config & header ---
+st.set_page_config(
+    page_title="Healing All Manner of Sickness Registration",
+    layout="centered"
 )
+
+# Custom header with logo and title
+st.markdown(
+    """
+    <div style="text-align:center">
+        <img src="https://example.com/logo.png" alt="Event Logo" width="100" /><br>
+        <h1>Healing All Manner of Sickness</h1>
+        <h3>Day 1 Registration (18 Jul 2025)</h3>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# --- Load Google Sheets client from secrets ---
+creds_info = st.secrets["gcp_service_account"]  # service account credentials
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
+gc = gspread.authorize(credentials)
+sheet = gc.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
+
+# --- Registration Form ---
+with st.form("day1_registration", clear_on_submit=False):
+    phone = st.text_input("Phone Number", max_chars=11)
+    name = st.text_input("Full Name")
+    gender = st.selectbox("Gender", ["Male", "Female", "Other"])
+    age = st.selectbox("Age Range", ["<18", "18-25", "26-35", "36-45", "46+"])
+    membership = st.selectbox("CBA Membership", ["Yes", "No"])
+    location = st.text_input("Location")
+    consent = st.checkbox("I consent to data processing.")
+    services = st.multiselect(
+        "Select desired services:",
+        ["Medical ≤200", "Welfare ≤200", "Counseling", "Prayer"]
+    )
+    submitted = st.form_submit_button("Submit")
+
+    if submitted:
+        if not consent:
+            st.error("Consent is required to register.")
+        else:
+            # generate Tag ID
+            records = sheet.get_all_records()
+            tag = f"HAMoS-{len(records)+1:04d}"
+            timestamp = datetime.utcnow().isoformat()
+            services_csv = ",".join(services)
+            row = [
+                tag,
+                phone,
+                name,
+                gender,
+                age,
+                membership,
+                location,
+                consent,
+                services_csv,
+                False,  # attended_day2
+                False,  # attended_day3
+                timestamp
+            ]
+            sheet.append_row(row)
+            st.success(f"Thank you! Your Tag ID is {tag}")
+            if st.button("Register Another"):
+                st.experimental_rerun()
