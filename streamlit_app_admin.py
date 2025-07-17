@@ -3,9 +3,8 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from google.oauth2.service_account import Credentials
-from datetime import datetime, timezone
 import textwrap
+from google.oauth2.service_account import Credentials
 
 # --- Page config ---
 st.set_page_config(
@@ -46,7 +45,8 @@ st.markdown(
 )
 
 # --- Admin Login (from Streamlit secrets) ---
-VALID_USERS = st.secrets["admin_credentials"]
+VALID_USERS = st.secrets["admin_credentials"]  # e.g. {"HAM1": "christbase22", ...}
+
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -64,32 +64,28 @@ if not st.session_state.logged_in:
     st.sidebar.info("Please log in via the sidebar.")
     st.stop()
 
-# --- Google Sheets Setup ---
-# Retrieve the raw creds dict from secrets
-creds_info = st.secrets["gcp_service_account"]
+# --- Google Sheets Setup (via service-account JSON in secrets) ---
+# 1) Copy secret into mutable dict
+raw = st.secrets["gcp_service_account"]
+creds_info = dict(raw)
 
-# Fix potential indentation/escaped-newline issues in the private key
-raw_key = creds_info.get("private_key", "")
-# Remove leading spaces and convert literal "\n" to actual newlines:
-clean_key = textwrap.dedent(raw_key).replace("\\n", "\n").strip()
-creds_info["private_key"] = clean_key
+# 2) Clean up PEM formatting
+creds_info["private_key"] = (
+    textwrap.dedent(creds_info["private_key"])
+            .replace("\\n", "\n")
+            .strip()
+)
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
+    "https://www.googleapis.com/auth/drive",
 ]
 credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
 gc = gspread.authorize(credentials)
 
-# Retrieve sheet config from secrets
-sheet_id = st.secrets["sheet_id"]
-sheet_name = st.secrets["sheet_name"]  # e.g. 'Registrations'
-
-try:
-    sheet = gc.open_by_key(sheet_id).worksheet(sheet_name)
-except Exception as e:
-    st.error(f"Error opening sheet '{sheet_name}': {e}")
-    st.stop()
+# 3) Open the sheet
+sheet = gc.open_by_key(st.secrets["sheet_id"])\
+          .worksheet(st.secrets["sheet_name"])
 
 # --- Load DataFrame ---
 records = sheet.get_all_records()
@@ -99,7 +95,10 @@ df = pd.DataFrame(records)
 st.subheader("🔍 Search & Update Attendee Services")
 query = st.text_input("Enter Tag ID or Phone Number to fetch record")
 if query:
-    filtered = df[(df['tag'].str.upper() == query.upper()) | (df['phone'] == query)]
+    filtered = df[
+        (df['tag'].str.upper() == query.upper()) |
+        (df['phone'] == query)
+    ]
     if filtered.empty:
         st.warning("No matching record found.")
     else:
