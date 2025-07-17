@@ -109,7 +109,7 @@ else:
 if wel_count < 200:
     service_options.insert(1, "Welfare")
 else:
-    st.markdown("<span style='color:lightgray'>Welfare (Sold Out)</span>"), unsafe_allow_html=True)
+    st.markdown("<span style='color:lightgray'>Welfare (Sold Out)</span>", unsafe_allow_html=True)
 
 # --- Registration Form ---
 with st.form("day1_registration", clear_on_submit=True):
@@ -143,4 +143,4 @@ if submitted:
         sheet.append_row(row)
 
         st.success(f"✅ Your Tag ID is **{tag}**")
-        # Form auto-cleared; user can register next directly
+        # Form auto-cleared; ready for next entry
