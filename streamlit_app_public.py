@@ -1,3 +1,4 @@
+# streamlit_app.py
 import streamlit as st
 from google.oauth2.service_account import Credentials
 import gspread
@@ -6,7 +7,7 @@ from datetime import datetime
 # --- Page Config ---
 st.set_page_config(page_title="Healing All Manner of Sickness", layout="centered")
 
-# --- Custom Header with updated logo URL ---
+# --- Custom Header ---
 st.markdown(
     """
     <div style="display: flex; align-items: center; justify-content: center;">
@@ -25,13 +26,18 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- Load & Validate Secrets ---
-creds = st.secrets["gcp_service_account"]
+# --- Load & validate that secrets exist ---
+if "gcp_service_account" not in st.secrets:
+    st.error("🚨 Please add your [gcp_service_account] block to Secrets.")
+    st.stop()
+
+creds_block = st.secrets["gcp_service_account"]
 required = [
     "type", "project_id", "private_key_id", "private_key",
-    "client_email", "token_uri", "sheet_id", "sheet_name"
+    "client_email", "token_uri",
+    "sheet_id", "sheet_name"
 ]
-missing = [k for k in required if k not in creds]
+missing = [k for k in required if k not in creds_block]
 if missing:
     st.error(f"🚨 Missing required secret keys: {missing}")
     st.stop()
@@ -39,31 +45,24 @@ if missing:
 # --- OAuth Scopes ---
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
+    "https://www.googleapis.com/auth/drive",
 ]
 
-# --- Cached Google Sheet Connection ---
 @st.cache_resource
 def get_sheet():
-    raw = st.secrets["gcp_service_account"]
-    info = dict(raw)
+    # copy and pop out the sheet info
+    info = creds_block.copy()
+    sheet_id = info.pop("sheet_id")
+    sheet_name = info.pop("sheet_name")
 
-    # --- KEY CLEANUP ---
-    # 1. Replace literal "\n" with real newlines
-    key = info["private_key"].replace("\\n", "\n")
-    # 2. Strip any carriage returns and surrounding whitespace
-    key = key.replace("\r", "").strip()
-    # 3. Ensure we still have BEGIN/END markers in place
-    if not key.startswith("-----BEGIN PRIVATE KEY-----"):
-        st.error("🔐 Your private_key is malformed (missing BEGIN marker).")
-        st.stop()
+    # Clean up private key newlines
+    key = info["private_key"].replace("\\n", "\n").strip()
     info["private_key"] = key
 
-    # Build credentials & gspread client
+    # Build credentials and open sheet
     credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
     client = gspread.authorize(credentials)
-    return client.open_by_key(info["sheet_id"]) \
-                 .worksheet(info["sheet_name"])
+    return client.open_by_key(sheet_id).worksheet(sheet_name)
 
 # Attempt connection
 try:
