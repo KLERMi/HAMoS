@@ -5,47 +5,54 @@ from sqlalchemy.orm import sessionmaker
 import os
 from datetime import datetime
 
-# URL‑encode your password (& → %26, % → %25)
+# URL-encoded Supabase connection string (special chars encoded)
 DEFAULT_DB_URL = (
-    "postgresql+pg8000://"
-    "postgres:Wg2gdt4QQL%26%25dsW"
-    "@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres"
+    'postgresql+pg8000://'
+    'postgres:Wg2gdt4QQL%26%25dsW'
+    '@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres'
 )
 
-DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
+# Allow override via environment variable
+DATABASE_URL = os.getenv('DATABASE_URL', DEFAULT_DB_URL)
 
+# Declarative base
 Base = declarative_base()
 
+# Registration model
 class Registration(Base):
-    __tablename__ = "registrations"
+    __tablename__ = 'registrations'
     id            = Column(Integer, primary_key=True, autoincrement=True)
-    tag_id        = Column(String(12), unique=True)
-    phone         = Column(String(11))
-    name          = Column(String(100))
-    gender        = Column(String(10))
-    age_range     = Column(String(10))
-    membership    = Column(String(10))
-    location      = Column(String(100))
-    consent       = Column(Boolean)
+    tag_id        = Column(String(12), unique=True, nullable=False)
+    phone         = Column(String(11), nullable=False)
+    name          = Column(String(100), nullable=False)
+    gender        = Column(String(10), nullable=False)
+    age_range     = Column(String(10), nullable=False)
+    membership    = Column(String(10), nullable=False)
+    location      = Column(String(100), nullable=False)
+    consent       = Column(Boolean, default=False)
     services      = Column(Text)
     day2_attended = Column(Boolean, default=False)
     day3_attended = Column(Boolean, default=False)
     ts            = Column(DateTime, default=datetime.utcnow)
-    source        = Column(String(20))  # 'public' or 'admin'
+    source        = Column(String(20), nullable=False)  # 'public' or 'admin'
 
-# Enforce SSL with the simple pg8000 argument
+# Create engine with SSL mode required
 engine = create_engine(
     DATABASE_URL,
     connect_args={"sslmode": "require"}
 )
 
+# Session factory
 SessionLocal = sessionmaker(bind=engine)
 
 def init_db():
-    try:
-        Base.metadata.create_all(bind=engine)
-    except Exception as e:
-        print(f"Warning: could not initialize DB: {e}")
+    """
+    Create all tables. Call this at application startup.
+    """
+    Base.metadata.create_all(bind=engine)
 
 def get_session():
+    """
+    Obtain a new database session.
+    """
     return SessionLocal()
