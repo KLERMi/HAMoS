@@ -5,22 +5,19 @@ from sqlalchemy.orm import sessionmaker
 import os
 from datetime import datetime
 
-# URL-encode special chars in password: & -> %26, % -> %25
+# URL‑encode your password (& → %26, % → %25)
 DEFAULT_DB_URL = (
-    'postgresql+pg8000://'
-    'postgres:Wg2gdt4QQL%26%25dsW'
-    '@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres'
+    "postgresql+pg8000://"
+    "postgres:Wg2gdt4QQL%26%25dsW"
+    "@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres"
 )
 
-# Allow override via environment
-DATABASE_URL = os.getenv('DATABASE_URL', DEFAULT_DB_URL)
+DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 
-# Base declarative class
 Base = declarative_base()
 
-# Registration model
 class Registration(Base):
-    __tablename__ = 'registrations'
+    __tablename__ = "registrations"
     id            = Column(Integer, primary_key=True, autoincrement=True)
     tag_id        = Column(String(12), unique=True)
     phone         = Column(String(11))
@@ -36,22 +33,19 @@ class Registration(Base):
     ts            = Column(DateTime, default=datetime.utcnow)
     source        = Column(String(20))  # 'public' or 'admin'
 
-# Create engine with SSL mode required
+# Enforce SSL with the simple pg8000 argument
 engine = create_engine(
     DATABASE_URL,
     connect_args={"sslmode": "require"}
 )
 
-# Session factory
-db_session = sessionmaker(bind=engine)
+SessionLocal = sessionmaker(bind=engine)
 
-# Initialize database (create tables if not exists)
 def init_db():
     try:
         Base.metadata.create_all(bind=engine)
     except Exception as e:
         print(f"Warning: could not initialize DB: {e}")
 
-# Get a new session
 def get_session():
-    return db_session()
+    return SessionLocal()
