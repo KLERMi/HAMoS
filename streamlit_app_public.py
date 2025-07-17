@@ -7,23 +7,22 @@ import pytz
 # --- Auth & Sheet Setup via Streamlit Cloud Secrets ---
 creds_info = st.secrets["gcp_service_account"]
 
-# retrieve sheet details from top‐level secrets
-sheet_id   = st.secrets["sheet_id"]
-sheet_name = st.secrets["sheet_name"]
+# now pull everything from the same table:
+sheet_id   = creds_info["sheet_id"]
+sheet_name = creds_info["sheet_name"]
 
-# build service account info dict
 info = {
-    "type":                          creds_info["type"],
-    "project_id":                    creds_info["project_id"],
-    "private_key_id":                creds_info["private_key_id"],
-    "private_key":                   creds_info["private_key"].replace("\\n", "\n").strip(),
-    "client_email":                  creds_info["client_email"],
-    "token_uri":                     creds_info["token_uri"],
-    "auth_uri":                      creds_info["auth_uri"],
-    "auth_provider_x509_cert_url":   creds_info["auth_provider_x509_cert_url"],
-    "client_x509_cert_url":          creds_info["client_x509_cert_url"],
-    "client_id":                     creds_info["client_id"],
-    "universe_domain":               creds_info["universe_domain"],
+    "type":                        creds_info["type"],
+    "project_id":                  creds_info["project_id"],
+    "private_key_id":              creds_info["private_key_id"],
+    "private_key":                 creds_info["private_key"].replace("\\n", "\n").strip(),
+    "client_email":                creds_info["client_email"],
+    "token_uri":                   creds_info["token_uri"],
+    "auth_uri":                    creds_info["auth_uri"],
+    "auth_provider_x509_cert_url": creds_info["auth_provider_x509_cert_url"],
+    "client_x509_cert_url":        creds_info["client_x509_cert_url"],
+    "client_id":                   creds_info["client_id"],
+    "universe_domain":             creds_info["universe_domain"],
 }
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
