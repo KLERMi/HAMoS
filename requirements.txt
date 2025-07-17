@@ -1,4 +1,4 @@
 streamlit==1.25.0
 SQLAlchemy==2.0.15
-psycopg2-binary==2.9.7
+pg8000==1.28.6
 pandas==2.0.3
