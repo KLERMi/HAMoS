@@ -3,13 +3,13 @@ import streamlit as st
 from datetime import datetime
 from hamos_db import init_db, get_session, Registration
 
-# Initialize the shared database
+# Initialize database
 init_db()
 
 # Page configuration
 st.set_page_config(page_title="HAMoS Registration", layout="centered")
 
-# UI Header
+# Header banner
 st.markdown("""
 <div style='display:flex; align-items:center; justify-content:center;'>
   <img src='https://raw.githubusercontent.com/KLERMi/HAMoS/main/cropped_image.png' style='height:60px; margin-right:10px;'>
@@ -20,10 +20,10 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Identify this page as public
+# Identify source
 PAGE_SOURCE = 'public'
 
-# Manage submission state
+# Submission state
 if 'submitted' not in st.session_state:
     st.session_state.submitted = False
 
@@ -42,12 +42,10 @@ if not st.session_state.submitted:
 
     if submit_btn:
         session = get_session()
-        # Generate Tag ID serially
-        count = session.query(Registration).count()
-        tag = f"HAMoS-{count+1:04d}"
-        now = datetime.utcnow()
+        count   = session.query(Registration).count()
+        tag     = f"HAMoS-{count+1:04d}"
+        now     = datetime.utcnow()
 
-        # Create registration record
         reg = Registration(
             tag_id=tag,
             phone=phone,
