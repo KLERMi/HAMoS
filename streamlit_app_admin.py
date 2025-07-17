@@ -1,9 +1,9 @@
 # streamlit_app_admin.py
 
 import streamlit as st
-from google.oauth2.service_account import Credentials
-import gspread
 import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
 from datetime import datetime, timezone
 
 # --- Page config ---
@@ -22,32 +22,25 @@ st.markdown(
       background-size: contain;
       opacity: 0.3;
       position: fixed;
-      top: 0; right: 0; bottom: 0; left: 0;
+      top: 0; left: 0; bottom: 0; right: 0;
       z-index: -1;
     }
-    .church-header {
-      text-align: center;
-      font-family: 'Aptos Light', sans-serif;
-      margin: 1rem 0;
-    }
-    .church-name {
-      font-size: 26px;
-      color: #4472C4;
-      line-height: 0.8;
-      margin: 0;
-    }
-    .church-slogan {
-      font-size: 14px;
-      color: #ED7D31;
-      line-height: 0.8;
-      margin: 0;
-    }
+    .header-flex { display:flex; align-items:center; justify-content:center; gap:1rem; margin-bottom:1rem; }
+    .church-name { font-family:'Aptos Light',sans-serif; font-size:26px; color:#4472C4; margin:0; line-height:0.8; text-align:center; }
+    .church-slogan { font-family:'Aptos Light',sans-serif; font-size:14px; color:#ED7D31; margin:0; line-height:0.8; text-align:center; }
     </style>
-    <div class="church-header">
-      <div class="church-name">Christ Base Assembly</div>
-      <div class="church-slogan">winning souls, building people..</div>
-      <h2>Admin Dashboard - Healing All Manner of Sickness</h2>
+    """,
+    unsafe_allow_html=True
+)
+# --- Header ---
+st.markdown(
+    """
+    <div class="header-flex">
+      <img src="https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png" width="80" />
     </div>
+    <p class="church-name">Christ Base Assembly</p>
+    <p class="church-slogan">winning souls, building people..</p>
+    <hr>
     """,
     unsafe_allow_html=True
 )
@@ -69,7 +62,7 @@ with st.sidebar:
             st.error("Invalid credentials.")
 
 if not st.session_state.logged_in:
-    st.info("Please log in via sidebar.")
+    st.info("Please log in via the sidebar.")
     st.stop()
 
 # --- Google Sheets setup ---
@@ -86,52 +79,43 @@ sheet = gc.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"
 records = sheet.get_all_records()
 df = pd.DataFrame(records)
 
-# --- Display Recent Records ---
-st.subheader("Most Recent Records")
-st.dataframe(df.sort_values(by="timestamp", ascending=False))
+# --- Search & Update Services ---
+st.subheader("🔍 Search & Update Member Services")
+query = st.text_input("Enter Tag ID or Phone Number to fetch record")
+if query:
+    match = df[(df['tag'].str.upper() == query.upper()) | (df['phone'] == query)]
+    if match.empty:
+        st.warning("No matching record found.")
+    else:
+        record = match.iloc[0]
+        st.markdown("### Registered Services:")
+        services = record['services'].split(",") if record['services'] else []
+        for svc in services:
+            st.write(f"- {svc.strip()}")
+        st.markdown("### Mark Services As Provided:")
+        provided = []
+        for svc in services:
+            if st.checkbox(svc.strip(), key=svc):
+                provided.append(svc.strip())
+        if st.button("Submit Services Update"):
+            # ensure Provided Services column exists
+            if 'Provided Services' not in df.columns:
+                # add header
+                sheet.insert_column(['Provided Services'] + [''] * len(df), index=len(df.columns)+1)
+                df['Provided Services'] = ''
+            # update row
+            row_idx = match.index[0] + 2
+            col_idx = df.columns.get_loc('Provided Services') + 1
+            sheet.update_cell(row_idx, col_idx, ", ".join(provided))
+            st.success("Provided Services updated successfully.")
 
-# --- Search ---
-with st.expander("Search Records"):
-    term = st.text_input("Filter by Phone or Tag ID")
-    if term:
-        filtered = df[
-            df["phone"].astype(str).str.contains(term, na=False) |
-            df["tag"].str.contains(term, na=False)
-        ]
-        st.dataframe(filtered)
-
-# --- Download All Registrations ---
-csv = df.to_csv(index=False)
+# --- Download All Records ---
+st.markdown("---")
+st.subheader("📥 Download All Records")
+csv = df.to_csv(index=False).encode('utf-8')
 st.download_button(
-    "Download All Registrations",
+    label="Download CSV",
     data=csv,
-    file_name="registrations.csv",
+    file_name="hamos_admin_data.csv",
     mime="text/csv"
 )
-
-# --- Check-In Section ---
-st.subheader("Check-In")
-now = datetime.now(timezone.utc)
-windows = {
-    "Day 1 Evening": (datetime(2025,7,18,18,0,tzinfo=timezone.utc), datetime(2025,7,18,22,0,tzinfo=timezone.utc)),
-    "Day 2 Morning": (datetime(2025,7,19,8,0,tzinfo=timezone.utc), datetime(2025,7,19,12,0,tzinfo=timezone.utc)),
-    "Day 2 Evening": (datetime(2025,7,19,18,0,tzinfo=timezone.utc), datetime(2025,7,19,22,0,tzinfo=timezone.utc)),
-    "Day 3 Morning": (datetime(2025,7,20,8,30,tzinfo=timezone.utc), datetime(2025,7,20,12,0,tzinfo=timezone.utc)),
-}
-for label, (start, end) in windows.items():
-    if start <= now <= end:
-        if st.button(f"Check-In {label}"):
-            tag_input = st.text_input("Enter Tag ID to check in:", key=label)
-            if tag_input:
-                idx = df.index[df["tag"] == tag_input].tolist()
-                if idx:
-                    day_num = int(label.split()[1])
-                    col_name = f"attended_day{day_num}"
-                    row_idx = idx[0] + 2
-                    col_idx = df.columns.get_loc(col_name) + 1
-                    sheet.update_cell(row_idx, col_idx, True)
-                    st.success(f"{tag_input} checked in for {label}.")
-                else:
-                    st.error("Tag ID not found.")
-    else:
-        st.button(f"Check-In {label}", disabled=True)
