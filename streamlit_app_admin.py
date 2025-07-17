@@ -7,7 +7,7 @@ from datetime import datetime
 
 # Use the Supabase URL directly if env var not set
 DATABASE_URL = os.getenv('DATABASE_URL',
-    'postgresql://postgres:[YOUR-PASSWORD]@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres'
+    'postgresql://postgres:[Wg2gdt4QQL&%dsW]@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres'
 )
 
 # Base declarative class
