@@ -66,11 +66,15 @@ if not st.session_state.logged_in:
 
 # --- Google Sheets Setup ---
 creds_info = st.secrets["gcp_service_account"]
+# Fix private_key newlines if literal "\n" present
+if "private_key" in creds_info and isinstance(creds_info["private_key"], str):
+    creds_info["private_key"] = creds_info["private_key"].replace('\\n', "\n")
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
 credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
+
 gc = gspread.authorize(credentials)
 
 # Retrieve sheet config from secrets
