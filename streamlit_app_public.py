@@ -1,4 +1,5 @@
 # streamlit_app_public.py
+
 import streamlit as st
 from google.oauth2.service_account import Credentials
 import gspread
@@ -22,15 +23,13 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-import streamlit as st
-
-creds_info = st.secrets["gcp_service_account"]
-st.write("🔑 Debug: using service‑account email:", creds_info["client_email"])
-st.stop()  # stop here so you can see it
 
 # --- Load Google Sheets client from secrets ---
 creds_info = st.secrets["gcp_service_account"]  # service account credentials
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
 gc = gspread.authorize(credentials)
 sheet = gc.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
