@@ -5,6 +5,7 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timezone
+import textwrap
 
 # --- Page config ---
 st.set_page_config(
@@ -44,25 +45,35 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- Admin Login (hard-coded multiple profiles) ---
-VALID_USERS = {"HAM1": "christbase22", "HAM2": "christbase23"}
+# --- Admin Login (from Streamlit secrets) ---
+VALID_USERS = st.secrets["admin_credentials"]
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+
 with st.sidebar:
     st.header("Admin Login")
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
     if st.button("Login"):
-        if username in VALID_USERS and password == VALID_USERS[username]:
+        if VALID_USERS.get(username) == password:
             st.session_state.logged_in = True
         else:
             st.sidebar.error("Invalid login details, please retry.")
+
 if not st.session_state.logged_in:
     st.sidebar.info("Please log in via the sidebar.")
     st.stop()
 
 # --- Google Sheets Setup ---
-creds_info = st.secrets["gcp_service_account"]  # relies on Streamlit Cloud secrets
+# Retrieve the raw creds dict from secrets
+creds_info = st.secrets["gcp_service_account"]
+
+# Fix potential indentation/escaped-newline issues in the private key
+raw_key = creds_info.get("private_key", "")
+# Remove leading spaces and convert literal "\n" to actual newlines:
+clean_key = textwrap.dedent(raw_key).replace("\\n", "\n").strip()
+creds_info["private_key"] = clean_key
+
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
@@ -71,8 +82,9 @@ credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
 gc = gspread.authorize(credentials)
 
 # Retrieve sheet config from secrets
-sheet_id = st.secrets.get("sheet_id")
-sheet_name = st.secrets.get("sheet_name")  # 'Registrations'
+sheet_id = st.secrets["sheet_id"]
+sheet_name = st.secrets["sheet_name"]  # e.g. 'Registrations'
+
 try:
     sheet = gc.open_by_key(sheet_id).worksheet(sheet_name)
 except Exception as e:
