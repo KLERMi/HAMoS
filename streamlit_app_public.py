@@ -4,21 +4,21 @@ import gspread
 from datetime import datetime
 
 # --- Page Config ---
-st.set_page_config(
-    page_title="Healing All Manner of Sickness",
-    layout="centered"
-)
+st.set_page_config(page_title="Healing All Manner of Sickness", layout="centered")
 
-# --- Custom Header ---
+# --- Custom Header with updated logo URL ---
 st.markdown(
     """
     <div style="display: flex; align-items: center; justify-content: center;">
-        <img src="https://example.com/logo.png" alt="Event Logo" width="80" style="margin-right: 15px;" />
+        <img src="https://raw.githubusercontent.com/KLERMi/HAMoS/main/cropped_image.png"
+             alt="Event Logo"
+             width="80"
+             style="margin-right: 15px;" />
         <div>
             <h1 style="margin: 0; font-size: 30px;">Christ Base Assembly</h1>
             <h4 style="margin: 0; font-size: 11px;">Winning Souls, Building People</h4>
-            <h3 style="margin: 0;">Healing All Manner of Sickness – Day 1</h3>
-            <h4 style="margin: 0;">18 Jul 2025</h4>
+            <h3 style="margin: 0;">Healing All Manner of Sickness – Day 1</h3>
+            <h4 style="margin: 0;">18 Jul 2025</h4>
         </div>
     </div>
     """,
@@ -27,11 +27,11 @@ st.markdown(
 
 # --- Load & Validate Secrets ---
 creds = st.secrets["gcp_service_account"]
-required_keys = [
+required = [
     "type", "project_id", "private_key_id", "private_key",
     "client_email", "token_uri", "sheet_id", "sheet_name"
 ]
-missing = [k for k in required_keys if k not in creds]
+missing = [k for k in required if k not in creds]
 if missing:
     st.error(f"🚨 Missing required secret keys: {missing}")
     st.stop()
@@ -45,18 +45,27 @@ SCOPES = [
 # --- Cached Google Sheet Connection ---
 @st.cache_resource
 def get_sheet():
-    # 1) Pull your secret block
     raw = st.secrets["gcp_service_account"]
-    # 2) Make a mutable copy and fix newlines
     info = dict(raw)
-    info["private_key"] = info["private_key"].replace("\\n", "\n")
-    # 3) Build credentials & client
+
+    # --- KEY CLEANUP ---
+    # 1. Replace literal "\n" with real newlines
+    key = info["private_key"].replace("\\n", "\n")
+    # 2. Strip any carriage returns and surrounding whitespace
+    key = key.replace("\r", "").strip()
+    # 3. Ensure we still have BEGIN/END markers in place
+    if not key.startswith("-----BEGIN PRIVATE KEY-----"):
+        st.error("🔐 Your private_key is malformed (missing BEGIN marker).")
+        st.stop()
+    info["private_key"] = key
+
+    # Build credentials & gspread client
     credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
     client = gspread.authorize(credentials)
     return client.open_by_key(info["sheet_id"]) \
                  .worksheet(info["sheet_name"])
 
-# — Connect (or stop with an error) —
+# Attempt connection
 try:
     sheet = get_sheet()
 except Exception as e:
@@ -77,7 +86,7 @@ with st.form("day1_registration", clear_on_submit=False):
     consent    = st.checkbox("I'm open to CBA following up to stay in touch.")
     services   = st.multiselect(
         "Select desired services:",
-        ["Medical ≤200", "Welfare ≤200", "Counseling", "Prayer"]
+        ["Medical ≤200", "Welfare ≤200", "Counseling", "Prayer"]
     )
     submitted  = st.form_submit_button("Submit")
 
