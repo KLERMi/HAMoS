@@ -8,14 +8,14 @@ from datetime import datetime
 # Database URL from env var or default to your Supabase URL
 DATABASE_URL = os.getenv(
     'DATABASE_URL',
-    'postgresql://postgres:[Wg2gdt4QQL&%dsW]@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres'
+    'postgresql://postgres:[YOUR-PASSWORD]@db.qfmlibtedkyowuxeruaa.supabase.co:5432/postgres'
 )
 
 # Base declarative class
 Base = declarative_base()
 
 # Registration model
-define-class-model=""
+
 class Registration(Base):
     __tablename__ = 'registrations'
     id             = Column(Integer, primary_key=True, autoincrement=True)
