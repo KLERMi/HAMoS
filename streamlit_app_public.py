@@ -1,4 +1,3 @@
-# streamlit_app.py
 import streamlit as st
 from google.oauth2.service_account import Credentials
 import gspread
@@ -7,7 +6,7 @@ from datetime import datetime
 # --- Page Config ---
 st.set_page_config(page_title="Healing All Manner of Sickness", layout="centered")
 
-# --- Custom Header ---
+# --- Custom Header with updated logo URL ---
 st.markdown(
     """
     <div style="display: flex; align-items: center; justify-content: center;">
@@ -26,18 +25,13 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- Load & validate that secrets exist ---
-if "gcp_service_account" not in st.secrets:
-    st.error("🚨 Please add your [gcp_service_account] block to Secrets.")
-    st.stop()
-
-creds_block = st.secrets["gcp_service_account"]
-required = [
+# --- Load & Validate Secrets ---
+raw = st.secrets.get("gcp_service_account", {})
+required_keys = [
     "type", "project_id", "private_key_id", "private_key",
-    "client_email", "token_uri",
-    "sheet_id", "sheet_name"
+    "client_email", "token_uri", "sheet_id", "sheet_name"
 ]
-missing = [k for k in required if k not in creds_block]
+missing = [k for k in required_keys if k not in raw]
 if missing:
     st.error(f"🚨 Missing required secret keys: {missing}")
     st.stop()
@@ -45,26 +39,27 @@ if missing:
 # --- OAuth Scopes ---
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/drive"
 ]
 
+# --- Cached Google Sheet Connection ---
 @st.cache_resource
 def get_sheet():
-    # copy and pop out the sheet info
-    info = creds_block.copy()
-    sheet_id = info.pop("sheet_id")
-    sheet_name = info.pop("sheet_name")
+    info = dict(raw)  # Convert SecretProxy to dict
 
-    # Clean up private key newlines
-    key = info["private_key"].replace("\\n", "\n").strip()
+    # Fix malformed private key: convert escaped newlines to actual newlines
+    key = info["private_key"].replace("\\n", "\n").replace("\r", "").strip()
+    if not key.startswith("-----BEGIN PRIVATE KEY-----"):
+        st.error("🔐 Your private_key is malformed (missing BEGIN marker).")
+        st.stop()
     info["private_key"] = key
 
-    # Build credentials and open sheet
+    # Build credentials and open Google Sheet
     credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
     client = gspread.authorize(credentials)
-    return client.open_by_key(sheet_id).worksheet(sheet_name)
+    return client.open_by_key(info["sheet_id"]).worksheet(info["sheet_name"])
 
-# Attempt connection
+# --- Try connecting to sheet ---
 try:
     sheet = get_sheet()
 except Exception as e:
@@ -76,10 +71,7 @@ with st.form("day1_registration", clear_on_submit=False):
     phone      = st.text_input("Phone Number", max_chars=11)
     name       = st.text_input("Full Name")
     gender     = st.selectbox("Gender", ["Male", "Female"])
-    age        = st.selectbox(
-        "Age Range",
-        ["<18", "18-25", "26-35", "36-45", "46-55", "56-65", "66+"]
-    )
+    age        = st.selectbox("Age Range", ["<18", "18-25", "26-35", "36-45", "46-55", "56-65", "66+"])
     membership = st.selectbox("CBA Membership", ["Yes", "No"])
     location   = st.text_input("Location")
     consent    = st.checkbox("I'm open to CBA following up to stay in touch.")
@@ -87,16 +79,16 @@ with st.form("day1_registration", clear_on_submit=False):
         "Select desired services:",
         ["Medical ≤200", "Welfare ≤200", "Counseling", "Prayer"]
     )
-    submitted  = st.form_submit_button("Submit")
+    submitted = st.form_submit_button("Submit")
 
     if submitted:
         if not consent:
             st.error("Consent is required to register.")
         else:
             try:
-                records      = sheet.get_all_records()
-                tag          = f"HAMoS-{len(records) + 1:04d}"
-                timestamp    = datetime.utcnow().isoformat()
+                records = sheet.get_all_records()
+                tag = f"HAMoS-{len(records) + 1:04d}"
+                timestamp = datetime.utcnow().isoformat()
                 services_csv = ",".join(services)
                 row = [
                     tag, phone, name, gender, age, membership,
