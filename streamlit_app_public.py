@@ -32,14 +32,6 @@ SCOPES = [
 ]
 credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
 gc = gspread.authorize(credentials)
-# … after gc = gspread.authorize(credentials) …
-
-# DEBUG: what spreadsheets can this SA see?
-files = gc.list_spreadsheet_files()  # a list of {'id', 'name'} maps
-st.write("🔍 Accessible spreadsheets (first 20):")
-for f in files[:20]:
-    st.write(f"- {f['name']}  (ID: {f['id']})")
-st.stop()
 
 sheet = gc.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
 
