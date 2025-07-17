@@ -46,10 +46,8 @@ st.markdown(
 
 # --- Admin Login (hard-coded multiple profiles) ---
 VALID_USERS = {"HAM1": "christbase22", "HAM2": "christbase23"}
-
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-
 with st.sidebar:
     st.header("Admin Login")
     username = st.text_input("Username")
@@ -59,27 +57,22 @@ with st.sidebar:
             st.session_state.logged_in = True
         else:
             st.sidebar.error("Invalid login details, please retry.")
-
 if not st.session_state.logged_in:
     st.sidebar.info("Please log in via the sidebar.")
     st.stop()
 
 # --- Google Sheets Setup ---
-creds_info = st.secrets["gcp_service_account"]
-# Fix private_key newlines if literal "\n" present
-if "private_key" in creds_info and isinstance(creds_info["private_key"], str):
-    creds_info["private_key"] = creds_info["private_key"].replace('\\n', "\n")
+creds_info = st.secrets["gcp_service_account"]  # relies on Streamlit Cloud secrets
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
 credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
-
 gc = gspread.authorize(credentials)
 
 # Retrieve sheet config from secrets
 sheet_id = st.secrets.get("sheet_id")
-sheet_name = st.secrets.get("sheet_name")  # should be 'Registrations'
+sheet_name = st.secrets.get("sheet_name")  # 'Registrations'
 try:
     sheet = gc.open_by_key(sheet_id).worksheet(sheet_name)
 except Exception as e:
