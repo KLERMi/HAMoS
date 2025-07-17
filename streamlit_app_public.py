@@ -1,68 +1,75 @@
 # streamlit_app_public.py
+
 import streamlit as st
+from google.oauth2.service_account import Credentials
+import gspread
+import pandas as pd
 from datetime import datetime
-from hamos_db import init_db, get_session, Registration
 
-# Initialize database
-init_db()
+# --- Page config & header ---
+st.set_page_config(
+    page_title="Healing All Manner of Sickness Registration",
+    layout="centered"
+)
 
-# Page configuration
-st.set_page_config(page_title="HAMoS Registration", layout="centered")
+# Custom header with logo and title
+st.markdown(
+    """
+    <div style="text-align:center">
+        <img src="https://example.com/logo.png" alt="Event Logo" width="100" /><br>
+        <h1>Healing All Manner of Sickness</h1>
+        <h3>Day 1 Registration (18 Jul 2025)</h3>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-# Header banner
-st.markdown("""
-<div style='display:flex; align-items:center; justify-content:center;'>
-  <img src='https://raw.githubusercontent.com/KLERMi/HAMoS/main/cropped_image.png' style='height:60px; margin-right:10px;'>
-  <div style='line-height:0.8;'>
-    <h1 style='font-family:Aptos Light; font-size:26px; color:#4472C4; margin:0;'>Christ Base Assembly</h1>
-    <p style='font-family:Aptos Light; font-size:14px; color:#ED7D31; margin:0;'>winning souls, building people..</p>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+# --- Load Google Sheets client from secrets ---
+creds_info = st.secrets["gcp_service_account"]  # service account credentials
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
+gc = gspread.authorize(credentials)
+sheet = gc.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
 
-# Identify source
-PAGE_SOURCE = 'public'
+# --- Registration Form ---
+with st.form("day1_registration", clear_on_submit=False):
+    phone = st.text_input("Phone Number", max_chars=11)
+    name = st.text_input("Full Name")
+    gender = st.selectbox("Gender", ["Male", "Female", "Other"])
+    age = st.selectbox("Age Range", ["<18", "18-25", "26-35", "36-45", "46+"])
+    membership = st.selectbox("CBA Membership", ["Yes", "No"])
+    location = st.text_input("Location")
+    consent = st.checkbox("I consent to data processing.")
+    services = st.multiselect(
+        "Select desired services:",
+        ["Medical ≤200", "Welfare ≤200", "Counseling", "Prayer"]
+    )
+    submitted = st.form_submit_button("Submit")
 
-# Submission state
-if 'submitted' not in st.session_state:
-    st.session_state.submitted = False
-
-# Registration form
-if not st.session_state.submitted:
-    with st.form('registration_form'):
-        phone      = st.text_input('Phone', max_chars=11)
-        name       = st.text_input('Full Name')
-        gender     = st.selectbox('Gender', ['Male', 'Female'])
-        age_range  = st.selectbox('Age Range', ['10-20','21-30','31-40','41-50','51-60','61-70','70+'])
-        membership = st.selectbox('CBA Membership', ['Existing', 'New'])
-        location   = st.text_input('Location (Community/LGA)')
-        consent    = st.checkbox('Consent to follow-up')
-        services   = st.multiselect('Services', ['Prayer', 'Medical', 'Welfare'])
-        submit_btn = st.form_submit_button('Submit')
-
-    if submit_btn:
-        session = get_session()
-        count   = session.query(Registration).count()
-        tag     = f"HAMoS-{count+1:04d}"
-        now     = datetime.utcnow()
-
-        reg = Registration(
-            tag_id=tag,
-            phone=phone,
-            name=name,
-            gender=gender,
-            age_range=age_range,
-            membership=membership,
-            location=location,
-            consent=consent,
-            services=','.join(services),
-            ts=now,
-            source=PAGE_SOURCE
-        )
-        session.add(reg)
-        session.commit()
-
-        st.session_state.submitted = True
-        st.success(f"Thank you! Your Tag ID is {tag}")
-else:
-    st.button('Register Another', on_click=lambda: st.session_state.update(submitted=False))
+    if submitted:
+        if not consent:
+            st.error("Consent is required to register.")
+        else:
+            # generate Tag ID
+            records = sheet.get_all_records()
+            tag = f"HAMoS-{len(records)+1:04d}"
+            timestamp = datetime.utcnow().isoformat()
+            services_csv = ",".join(services)
+            row = [
+                tag,
+                phone,
+                name,
+                gender,
+                age,
+                membership,
+                location,
+                consent,
+                services_csv,
+                False,  # attended_day2
+                False,  # attended_day3
+                timestamp
+            ]
+            sheet.append_row(row)
+            st.success(f"Thank you! Your Tag ID is {tag}")
+            if st.button("Register Another"):
+                st.experimental_rerun()
