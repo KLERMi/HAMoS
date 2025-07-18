@@ -13,15 +13,18 @@ credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
 client = gspread.authorize(credentials)
 sheet = client.open_by_key(info["sheet_id"]).worksheet(info["sheet_name"])
 
+# Fetch header once for column ordering
+HEADER = sheet.row_values(1)
+
 # --- Helper Functions ---
 def get_session():
     tz = pytz.timezone("Africa/Lagos")
     now = datetime.now(tz)
     sessions = [
-        (tz.localize(datetime(2025,7,18,18,0)), "Day 1 - Fri 6PM", "attended_day1"),
-        (tz.localize(datetime(2025,7,19,8,0)), "Day 2 - Sat 8AM", "attended_day2_morning"),
-        (tz.localize(datetime(2025,7,19,18,0)), "Day 2 - Sat 6PM", "attended_day2_evening"),
-        (tz.localize(datetime(2025,7,20,8,30)), "Day 3 - Sun 8:30AM", "attended_day3"),
+        (tz.localize(datetime(2025, 7, 18, 18, 0)), "Day 1 - Fri 6PM", "attended_day1"),
+        (tz.localize(datetime(2025, 7, 19, 8, 0)), "Day 2 - Sat 8AM", "attended_day2_morning"),
+        (tz.localize(datetime(2025, 7, 19, 18, 0)), "Day 2 - Sat 6PM", "attended_day2_evening"),
+        (tz.localize(datetime(2025, 7, 20, 8, 30)), "Day 3 - Sun 8:30AM", "attended_day3"),
     ]
     for dt, label, key in sessions:
         if now <= dt:
@@ -33,7 +36,7 @@ def clear_form_state():
     st.session_state.clear()
 
 # --- Logo/Header Layout ---
-col1, col2 = st.columns([1,6])
+col1, col2 = st.columns([1, 6])
 with col1:
     st.image(
         "https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png",
@@ -63,6 +66,7 @@ for r in records:
     services = r.get("services", "")
     if services:
         all_services.extend([s.strip() for s in services.split(",")])
+
 used_medicals = all_services.count("Medicals")
 used_welfare = all_services.count("Welfare package")
 remaining_medicals = max(0, 200 - used_medicals)
@@ -80,13 +84,13 @@ if checkin_mode == "New Registration":
         membership = st.selectbox("CBA Membership", ["Yes","No"])
         location   = st.text_input("Location")
         consent    = st.checkbox("I'm open to CBA following up to stay in touch.")
-        service_options = []
+        options    = []
         if remaining_medicals > 0:
-            service_options.append("Medicals")
+            options.append("Medicals")
         if remaining_welfare > 0:
-            service_options.append("Welfare package")
-        service_options += ["Counseling","Prayer"]
-        services   = st.multiselect("Select desired services:", service_options)
+            options.append("Welfare package")
+        options += ["Counseling","Prayer"]
+        services   = st.multiselect("Select desired services:", options)
         submitted  = st.form_submit_button("Submit")
 
         if submitted:
@@ -99,38 +103,48 @@ if checkin_mode == "New Registration":
                 next_num = max(nums) + 1 if nums else 1
                 tag = f"HAMoS-{next_num:04d}"
 
+                # Prepare data dict
                 timestamp = datetime.now(pytz.timezone("Africa/Lagos")).isoformat()
-                services_csv = ",".join(services)
-                attended = {"attended_day1":"","attended_day2_morning":"",
-                            "attended_day2_evening":"","attended_day3":""}
+                attended = {col: "" for col in ["attended_day1","attended_day2_morning","attended_day2_evening","attended_day3"]}
                 attended[session_column] = "TRUE"
-                row = [tag, phone, name, gender, age, membership,
-                       location, consent, services_csv,
-                       attended["attended_day1"], attended["attended_day2_morning"],
-                       attended["attended_day2_evening"], attended["attended_day3"], timestamp]
+                data = {
+                    'tag': tag,
+                    'phone': phone,
+                    'name': name,
+                    'gender': gender,
+                    'age': age,
+                    'membership': membership,
+                    'location': location,
+                    'consent': consent,
+                    'services': ",".join(services),
+                    'timestamp': timestamp,
+                    **attended
+                }
+                # Build row in header order
+                row = [data.get(col, '') for col in HEADER]
                 sheet.append_row(row, value_input_option="USER_ENTERED")
                 st.success(f"Thank you! Your Tag ID is {tag}")
     if st.button("OK", on_click=clear_form_state):
         pass
 
-elif checkin_mode == "Check-In by Phone or Tag ID":
-    with st.form("checkin"):
-        lookup = st.text_input("Enter Phone or Tag ID")
-        submitted = st.form_submit_button("Find Record")
+else:
+    with st.form("checkin"):        
+        lookup      = st.text_input("Enter Phone or Tag ID")
+        find_submit = st.form_submit_button("Find Record")
 
-        if submitted:
+        if find_submit:
             records = sheet.get_all_records()
             header = sheet.row_values(1)
-            match = next((r for r in records if str(r.get("phone")).strip()==lookup.strip() 
-                          or str(r.get("tag")).strip()==lookup.strip()), None)
+            match = next((r for r in records if str(r.get("phone")).strip()==lookup.strip() or str(r.get("tag")).strip()==lookup.strip()), None)
             if not match:
                 st.error("No matching record found.")
             else:
                 st.success(f"Welcome {match.get('name')}!")
                 if not match.get(session_column):
-                    if st.form_submit_button("Check In Now"):
-                        row_idx = records.index(match)+2
-                        col_idx = header.index(session_column)+1
+                    checkin_submit = st.form_submit_button("Check In Now")
+                    if checkin_submit:
+                        row_idx = records.index(match) + 2
+                        col_idx = header.index(session_column) + 1
                         sheet.update_cell(row_idx, col_idx, "TRUE")
                         st.success("Check-in successful!")
                 else:
