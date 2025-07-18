@@ -92,8 +92,10 @@ creds_info["private_key"] = (
             .replace("\\n", "\n")
             .strip()
 )
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets",
-          "https://www.googleapis.com/auth/drive"]
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
 credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
 gc = gspread.authorize(credentials)
 sheet = (
@@ -144,17 +146,16 @@ if q:
 
         # 2) Render checkboxes with unique keys
         received = []
-        row_number = filtered.index[0] + 2  # +2: 1 for header, +1 for zero‑based index
+        row_number = filtered.index[0] + 2  # +2: header row + zero‑based index
         for svc in services:
             key = f"svc_{row_number}_{svc}"
             if st.checkbox(svc, key=key):
                 received.append(svc)
 
-        # 3) On submit, update via A1 notation and patch local df
+        # 3) On submit, update via update_cell and patch local df
         if st.button("Submit Update"):
             col_idx = df.columns.get_loc(col_name) + 1
-            cell_a1 = gspread.utils.rowcol_to_a1(row_number, col_idx)
-            sheet.update(cell_a1, ", ".join(received))
+            sheet.update_cell(row_number, col_idx, ", ".join(received))
             df.at[filtered.index[0], col_name] = ", ".join(received)
             st.success("Updated successfully.")
 
