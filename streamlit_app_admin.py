@@ -39,7 +39,6 @@ with st.sidebar:
 if not st.session_state.logged_in:
     st.stop()
 
-
 # --- Page config & compact header styling ---
 st.set_page_config(page_title="HAMoS Admin Portal", layout="centered")
 
@@ -131,22 +130,32 @@ if q:
         for svc in services:
             st.write(f"- {svc}")
 
+        # --- Updated “Mark Services Received” block ---
         st.markdown("**Mark Services Received:**")
+        col_name = "Services Received"
+
+        # 1) Ensure the column exists
+        if col_name not in df.columns:
+            sheet.add_cols(1)
+            header_row = sheet.row_values(1)
+            new_col_idx = len(header_row) + 1
+            sheet.update_cell(1, new_col_idx, col_name)
+            df[col_name] = ""  # expand local DataFrame schema
+
+        # 2) Render checkboxes with unique keys
         received = []
+        row_number = filtered.index[0] + 2  # +2: 1 for header, +1 for zero‑based index
         for svc in services:
-            if st.checkbox(svc, key=svc):
+            key = f"svc_{row_number}_{svc}"
+            if st.checkbox(svc, key=key):
                 received.append(svc)
 
+        # 3) On submit, update via A1 notation and patch local df
         if st.button("Submit Update"):
-            col_name = "Services Received"
-            if col_name not in df.columns:
-                sheet.add_cols(1)
-                new_idx = len(df.columns) + 1
-                sheet.update_cell(1, new_idx, col_name)
-                df[col_name] = ""
-            row_idx = filtered.index[0] + 2
             col_idx = df.columns.get_loc(col_name) + 1
-            sheet.update_cell(row_idx, col_idx, ", ".join(received))
+            cell_a1 = gspread.utils.rowcol_to_a1(row_number, col_idx)
+            sheet.update(cell_a1, ", ".join(received))
+            df.at[filtered.index[0], col_name] = ", ".join(received)
             st.success("Updated successfully.")
 
 # --- Download All Records ---
