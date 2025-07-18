@@ -60,13 +60,13 @@ st.markdown(
       }
       .church-name {
         font-family: 'Aptos Light', sans-serif;
-        font-size: 30px;            /* increased from 28 to 30 */
+        font-size: 30px;
         color: #4472C4;
         margin: 0;
       }
       .church-slogan {
         font-family: 'Aptos Light', sans-serif;
-        font-size: 11px;            /* decreased from 14 to 11 */
+        font-size: 11px;
         color: #ED7D31;
         margin: 0;
       }
@@ -123,8 +123,15 @@ if q:
     if filtered.empty:
         st.warning("No matching record found.")
     else:
+        # Pull the first matching record
         rec = filtered.iloc[0]
+
+        # Display key details
         st.markdown(f"**Name:** {rec.get('name', '—')}")
+        st.markdown(f"**Phone:** {rec.get('phone', '—')}")
+        st.markdown(f"**Tag ID:** {rec.get('tag', '—')}")
+
+        # Registered services
         st.markdown("**Registered Services:**")
         services = rec.get('services', '')
         services = [s.strip() for s in services.split(',')] if services else []
@@ -142,11 +149,11 @@ if q:
             header_row = sheet.row_values(1)
             new_col_idx = len(header_row) + 1
             sheet.update_cell(1, new_col_idx, col_name)
-            df[col_name] = ""  # expand local DataFrame schema
+            df[col_name] = ""
 
         # 2) Render checkboxes with unique keys
         received = []
-        row_number = filtered.index[0] + 2  # +2: header row + zero‑based index
+        row_number = filtered.index[0] + 2  # header row offset
         for svc in services:
             key = f"svc_{row_number}_{svc}"
             if st.checkbox(svc, key=key):
