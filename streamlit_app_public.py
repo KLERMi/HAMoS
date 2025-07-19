@@ -11,39 +11,34 @@ info = dict(st.secrets["gcp_service_account"])
 info["private_key"] = info["private_key"].replace("\\n", "\n").strip()
 credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
 client = gspread.authorize(credentials)
+# Open the worksheet
 sheet = client.open_by_key(info["sheet_id"]).worksheet(info["sheet_name"])
-
-# Fetch header once for column ordering
-HEADER = sheet.row_values(1)
 
 # --- Helper Functions ---
 def get_session():
     tz = pytz.timezone("Africa/Lagos")
     now = datetime.now(tz)
+    # Map sheet header names for day2 and day3
     sessions = [
-        (tz.localize(datetime(2025, 7, 18, 18, 0)), "Day 1 - Fri 6PM", "attended_day1"),
-        (tz.localize(datetime(2025, 7, 19, 8, 0)), "Day 2 - Sat 8AM", "attended_day2_morning"),
-        (tz.localize(datetime(2025, 7, 19, 18, 0)), "Day 2 - Sat 6PM", "attended_day2_evening"),
-        (tz.localize(datetime(2025, 7, 20, 8, 30)), "Day 3 - Sun 8:30AM", "attended_day3"),
+        (tz.localize(datetime(2025, 7, 19, 8, 0)), "Check-in day2"),  # Day2 session
+        (tz.localize(datetime(2025, 7, 20, 8, 30)), "Check-in day 3"),  # Day3 session
     ]
-    for dt, label, key in sessions:
+    for dt, col_name in sessions:
         if now <= dt:
-            return label, key
-    return None, None
+            return col_name
+    return None
 
 
 def clear_form_state():
-    for key in ["lookup", "row_idx", "session_column"]:
-        if key in st.session_state:
-            del st.session_state[key]
+    st.session_state.pop('lookup', None)
+    st.session_state.pop('row_idx', None)
+    st.session_state.pop('session_col', None)
 
-# --- Logo/Header Layout ---
+
+# --- Layout Header ---
 col1, col2 = st.columns([1, 6])
 with col1:
-    st.image(
-        "https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png",
-        width=60
-    )
+    st.image("https://raw.githubusercontent.com/KLERMi/HAMoS/refs/heads/main/cropped_image.png", width=60)
 with col2:
     st.markdown(
         """
@@ -53,15 +48,15 @@ with col2:
     )
 st.markdown("---")
 
-# --- Determine Session ---
-session_label, session_column = get_session()
-if not session_column:
-    st.warning("No upcoming sessions available for check-in.")
+# Determine which check-in column applies
+session_col = get_session()
+if not session_col:
+    st.warning("No upcoming check-in available.")
     st.stop()
 else:
-    st.info(f"Current/Next session: **{session_label}**")
+    st.info(f"Next Check-In Column: **{session_col}**")
 
-# --- Main Logic: Check-In / Registration ---
+# --- Choose Mode ---
 mode = st.radio("Mode:", ["New Registration", "Check-In by Phone or Tag ID"])
 
 if mode == "New Registration":
@@ -74,65 +69,72 @@ if mode == "New Registration":
         location = st.text_input("Location")
         consent = st.checkbox("I'm open to CBA following up to stay in touch.")
 
-        # Build service options
         records = sheet.get_all_records()
-        services_list = []
-        used_medicals = sum(r.get("services","").split(",").count("Medicals") for r in records)
-        used_welfare = sum(r.get("services","").split(",").count("Welfare package") for r in records)
-        if used_medicals < 200:
-            services_list.append("Medicals")
-        if used_welfare < 200:
-            services_list.append("Welfare package")
-        services_list += ["Counseling","Prayer"]
-        services = st.multiselect("Select desired services:", services_list)
+        # Service limits
+        used_medicals = sum(r.get("services", "").split(",").count("Medicals") for r in records)
+        used_welfare = sum(r.get("services", "").split(",").count("Welfare package") for r in records)
+        options = []
+        if used_medicals < 200: options.append("Medicals")
+        if used_welfare < 200: options.append("Welfare package")
+        options += ["Counseling", "Prayer"]
+        services = st.multiselect("Select desired services:", options)
 
-        submitted = st.form_submit_button("Submit")
-        if submitted:
+        if st.form_submit_button("Submit"):
             if not consent:
                 st.error("Consent is required to register.")
             else:
+                # Tag generation
                 tags = [r.get('tag','') for r in records]
-                nums = [int(re.search(r'HAMoS-(\d{4})', t).group(1)) for t in tags if re.match(r'HAMoS-\d{4}', t)]
-                tag = f"HAMoS-{(max(nums)+1) if nums else 1:04d}"
+                nums = [int(m.group(1)) for t in tags if (m := re.match(r'HAMoS-(\d{4})', t))]
+                next_num = max(nums) + 1 if nums else 1
+                tag = f"HAMoS-{next_num:04d}"
                 ts = datetime.now(pytz.timezone("Africa/Lagos")).isoformat()
-                attended = {c: "" for c in ["attended_day1","attended_day2_morning","attended_day2_evening","attended_day3"]}
-                attended[session_column] = "TRUE"
+                # Initialize attendance flags
+                attendance = {"Check-in day2": "", "Check-in day 3": ""}
+                # Mark current session
+                attendance[session_col] = "TRUE"
+
                 data = {
-                    'tag': tag, 'phone': phone, 'name': name,
-                    'gender': gender, 'age': age, 'membership': membership,
-                    'location': location, 'consent': consent,
-                    'services': ",".join(services), 'timestamp': ts,
-                    **attended
+                    'tag': tag,
+                    'phone': phone,
+                    'name': name,
+                    'gender': gender,
+                    'age': age,
+                    'membership': membership,
+                    'location': location,
+                    'consent': consent,
+                    'services': ",".join(services),
+                    'timestamp': ts,
+                    **attendance
                 }
-                row = [data.get(col, '') for col in HEADER]
+                header = sheet.row_values(1)
+                row = [data.get(col, '') for col in header]
                 sheet.append_row(row, value_input_option="USER_ENTERED")
                 st.success(f"Registered! Your Tag ID: {tag}")
 
-elif mode == "Check-In by Phone or Tag ID":
-    with st.form("find_form", clear_on_submit=False):
+else:
+    # Check-In Flow
+    with st.form("find_form"):
         st.text_input("Enter Phone or Tag ID", key="lookup")
-        find = st.form_submit_button("Find Record")
-        if find:
-            recs = sheet.get_all_records()
-            header = HEADER
+        if st.form_submit_button("Find Record"):
             lookup = st.session_state.lookup.strip()
-            match = next((r for r in recs if str(r.get('phone','')).strip()==lookup or str(r.get('tag','')).strip()==lookup), None)
+            recs = sheet.get_all_records()
+            header = sheet.row_values(1)
+            match = next((r for r in recs if str(r.get("phone","")).strip()==lookup or str(r.get("tag","")).strip()==lookup), None)
             if not match:
-                st.error("No matching record found.")
+                st.error("No matching record.")
             else:
-                idx = recs.index(match) + 2
-                if match.get(session_column) == "TRUE":
-                    st.info("Already checked in for this session.")
-                    clear_form_state()
+                row_idx = recs.index(match) + 2
+                col_idx = header.index(session_col) + 1
+                if match.get(session_col) == "TRUE":
+                    st.info("Already checked in.")
                 else:
-                    st.session_state.row_idx = idx
-                    st.session_state.session_column = session_column
+                    st.session_state.row_idx = row_idx
+                    st.session_state.col_idx = col_idx
                     st.success(f"Welcome, {match.get('name')}!")
-    
-    # After finding, show check-in button
+
     if st.session_state.get('row_idx'):
         if st.button("Check In Now"):
-            col_idx = HEADER.index(st.session_state.session_column) + 1
-            sheet.update_cell(st.session_state.row_idx, col_idx, "TRUE")
+            sheet.update_cell(st.session_state.row_idx, st.session_state.col_idx, "TRUE")
             st.success("Check-in successful!")
             clear_form_state()
