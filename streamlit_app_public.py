@@ -1,4 +1,4 @@
-import streamlit as st
+""import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
@@ -53,8 +53,10 @@ session_col = get_session()
 if not session_col:
     st.warning("No upcoming check-in available.")
     st.stop()
-else:
-    st.info(f"Next Check-In Column: **{session_col}**")
+
+# Show current local time instead of session column
+now = datetime.now(pytz.timezone("Africa/Lagos"))
+st.info(f"Current Time: **{now.strftime('%A %d %B %Y, %I:%M %p')}**")
 
 # --- Choose Mode ---
 mode = st.radio("Mode:", ["New Registration", "Check-In by Phone or Tag ID"])
@@ -120,7 +122,7 @@ else:
             lookup = st.session_state.lookup.strip()
             recs = sheet.get_all_records()
             header = sheet.row_values(1)
-            match = next((r for r in recs if str(r.get("phone","")).strip()==lookup or str(r.get("tag","")).strip()==lookup), None)
+            match = next((r for r in recs if str(r.get("phone",""))==lookup or str(r.get("tag",""))==lookup), None)
             if not match:
                 st.error("No matching record.")
             else:
