@@ -89,8 +89,8 @@ raw = st.secrets["gcp_service_account"]
 creds_info = dict(raw)
 creds_info["private_key"] = (
     textwrap.dedent(creds_info["private_key"])
-            .replace("\\n", "\n")
-            .strip()
+        .replace("\\n", "\n")
+        .strip()
 )
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -99,9 +99,8 @@ SCOPES = [
 credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
 gc = gspread.authorize(credentials)
 sheet = (
-    gc
-    .open_by_key(st.secrets["sheet_id"])
-    .worksheet(st.secrets["sheet_name"])
+    gc.open_by_key(st.secrets["sheet_id"])
+      .worksheet(st.secrets["sheet_name"])
 )
 
 # --- Load DataFrame ---
@@ -129,8 +128,9 @@ if q:
         # Display key details
         st.markdown(f"**Name:** {rec.get('name', '—')}")
         st.markdown(f"**Phone:** {rec.get('phone', '—')}")
-        st.markdown(f"**Tag ID:** {rec.get('tag', '—')}")        # Display membership status
-                st.markdown(f"**Membership:** {rec.get('membership', '')}")
+        st.markdown(f"**Tag ID:** {rec.get('tag', '—')}")
+        # Display membership status
+        st.markdown(f"**Membership:** {rec.get('membership', '')}")
 
         # Registered services
         st.markdown("**Registered Services:**")
@@ -140,7 +140,7 @@ if q:
         for svc in services:
             st.write(f"- {svc}")
 
-        # --- Updated “Mark Services Received” block ---
+        # --- Updated "Mark Services Received" block ---
         st.markdown("**Mark Services Received:**")
         col_name = "Services Received"
 
