@@ -130,6 +130,8 @@ if q:
         st.markdown(f"**Name:** {rec.get('name', '—')}")
         st.markdown(f"**Phone:** {rec.get('phone', '—')}")
         st.markdown(f"**Tag ID:** {rec.get('tag', '—')}")
+                # Display membership status
+        st.markdown(f"**Membership:** {rec.get('membership', '')}")}")
 
         # Registered services
         st.markdown("**Registered Services:**")
