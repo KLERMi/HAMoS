@@ -108,47 +108,57 @@ try:
     st.markdown('</div>', unsafe_allow_html=True)
 
     # --- Record update section ---
-    match_df = filtered[filtered['name'] == selected_name]
-    match = match_df.iloc[0]  # safe because selection always set
-    idx = match.name
-    row_num = idx + 2
-    selected_phone = match.get('phone', '')
+# Safely retrieve match without risking IndexError
+match_df = filtered[filtered['name'] == selected_name]
+if match_df.empty:
+    st.warning("Selected attendee not found. Resetting to first attendee.")
+    # Default back to first attendee
+    first = display_df['Name'].iloc[0]
+    st.session_state['selected_name'] = first
+    st.experimental_rerun()
+# Now safely get the first match
+match = match_df.head(1).iloc[0]
+idx = match.name
+row_num = idx + 2
+selected_phone = match.get('phone', '')
 
-    st.write(f"**{match.get('name','')}** — {selected_phone} — {match.get('tag','')}")
-    action = st.radio("Action:", ["Update Address","Capture Follow-Up"], key='action')
-    now = datetime.now(pytz.timezone("Africa/Lagos")).strftime("%Y-%m-%d %H:%M:%S")
+st.write(f"**{match.get('name','')}** — {selected_phone} — {match.get('tag','')}" )
+action = st.radio("Action:", ["Update Address","Capture Follow-Up"], key='action')
+now = datetime.now(pytz.timezone("Africa/Lagos")).strftime("%Y-%m-%d %H:%M:%S")
 
-    if action == "Update Address":
-        current = match.get('Updated full address', '')
-        new_addr = st.text_input("New Address:", value=current, key='new_addr')
-        if st.button("Submit Address", key='submit_addr'):
-            c_idx = df.columns.get_loc('Updated full address') + 1
-            sheet.update_cell(row_num, c_idx, new_addr)
-            sheet.update_cell(row_num, df.columns.get_loc('Last Update') + 1, now)
-            st.success("Address updated successfully.")
+if action == "Update Address":
+    current = match.get('Updated full address','') or ''
+    new_addr = st.text_input("New Address:", value=current, key='new_addr')
+    if st.button("Submit Address", key='submit_addr'):
+        c_idx = df.columns.get_loc('Updated full address') + 1
+        sheet.update_cell(row_num, c_idx, new_addr)
+        sheet.update_cell(row_num, df.columns.get_loc('Last Update') + 1, now)
+        st.success("Address updated successfully.")
+else:
+    ftype = st.selectbox("Type of follow-up:", ["Call","Physical visit"], key='ftype')
+    if ftype == 'Call':
+        result = st.selectbox("Result of call:", ["Not reachable","Switched off","Reached","Missed call"], key='result')
     else:
-        ftype = st.selectbox("Type of follow-up:", ["Call","Physical visit"], key='ftype')
-        if ftype == 'Call':
-            result = st.selectbox("Result of call:", ["Not reachable","Switched off","Reached","Missed call"], key='result')
-        else:
-            result = st.selectbox("Result of visit:", ["Available","Not Available","Invalid Address"], key='result')
-        soon = st.radio("Soon to be CBA member?", ["Next service","Soon"], key='soon')
-        remarks = st.text_area("Remarks:", key='remarks')
-        if st.button("Submit Follow-Up", key='submit_followup'):
-            follow_cols = sorted([c for c in df.columns if c.startswith('Follow_up')], key=lambda x: int(x.replace('Follow_up','')) if x.replace('Follow_up','').isdigit() else 0)
-            slot = next((c for c in follow_cols if not match.get(c)), None)
-            if not slot:
-                slot = f'Follow_up{len(follow_cols)+1}'
-                header = sheet.row_values(1)
-                sheet.add_cols(1)
-                sheet.update_cell(1, len(header)+1, slot)
-            col_idx = df.columns.get_loc(slot) + 1
-            entry = f"{slot.replace('Follow_up','')}||{ftype}||{result}||{soon}||{remarks}"
-            sheet.update_cell(row_num, col_idx, entry)
-            sheet.update_cell(row_num, df.columns.get_loc('Last Update') + 1, now)
-            st.success("Follow-up report submitted.")
+        result = st.selectbox("Result of visit:", ["Available","Not Available","Invalid Address"], key='result')
+    soon = st.radio("Soon to be CBA member?", ["Next service","Soon"], key='soon')
+    remarks = st.text_area("Remarks:", key='remarks')
+    if st.button("Submit Follow-Up", key='submit_followup'):
+        follow_cols = sorted([c for c in df.columns if c.startswith('Follow_up')], key=lambda x: int(x.replace('Follow_up','')) if x.replace('Follow_up','').isdigit() else 0)
+        slot = next((c for c in follow_cols if not match.get(c)), None)
+        if not slot:
+            slot = f'Follow_up{len(follow_cols)+1}'
+            header = sheet.row_values(1)
+            sheet.add_cols(1)
+            sheet.update_cell(1, len(header)+1, slot)
+        col_idx = df.columns.get_loc(slot) + 1
+        entry = f"{slot.replace('Follow_up','')}||{ftype}||{result}||{soon}||{remarks}"
+        sheet.update_cell(row_num, col_idx, entry)
+        sheet.update_cell(row_num, df.columns.get_loc('Last Update') + 1, now)
+        st.success("Follow-up report submitted.")
 
-    # --- Attendees list expander ---
+# --- Attendees list expander ---
+with st.expander("Show/Hide Attendees List"):
+    st.dataframe(display_df[['Name','Gender','Phone','Address']])
     with st.expander("Show/Hide Attendees List"):
         st.dataframe(display_df[['Name','Gender','Phone','Address']])
 
