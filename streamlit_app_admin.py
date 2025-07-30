@@ -33,7 +33,7 @@ def main():
         return
 
     # Group selection
-    groups = sorted(df["group"].unique())
+    groups = sorted(df["group"].dropna().unique())
     if not groups:
         st.warning("No groups found in data.")
         return
@@ -46,9 +46,9 @@ def main():
         st.warning(f"No contacts found in group '{selected_group}'")
     else:
         st.header(f"Contacts in Group: {selected_group}")
-        # Display list of names
-        for name in group_df["name"]:
-            st.write(f"- {name}")
+        # Display list of names under the selected group
+        names = group_df["name"].dropna().tolist()
+        st.write("\n".join(f"- {n}" for n in names))
 
     # Refresh button
     if st.button("Refresh Data"):
