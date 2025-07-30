@@ -102,8 +102,11 @@ if action == "Update Address":
     if st.button("Complete", key='complete_addr'):
         reset_state()
         st.experimental_rerun()
+        st.stop()
     if st.button("Next", key='next_to_followup'):
         st.session_state['action'] = "Capture Follow-Up"
+        st.experimental_rerun()
+        st.stop()
 
 # --- Handle Capture Follow-Up ---
 else:
@@ -133,3 +136,4 @@ else:
     if st.button("Complete", key='complete_followup'):
         reset_state()
         st.experimental_rerun()
+        st.stop()
