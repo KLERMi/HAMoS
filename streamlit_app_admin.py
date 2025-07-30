@@ -10,49 +10,55 @@ def load_data(path: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 @st.cache_data
+# Cached loader to avoid re-reading CSV on every rerun
 def get_data(path: str) -> pd.DataFrame:
     return load_data(path)
 
+# Main app function
 def main():
     st.title("Coordinator App")
 
     # Sidebar: CSV path input
-    data_path = st.sidebar.text_input("Data CSV Path", "data/contacts.csv")
+    data_path = st.sidebar.text_input(
+        "Data CSV Path (must include 'group' & 'name' columns)",
+        "data/contacts.csv"
+    )
     df = get_data(data_path)
 
-    # Early exit if no data
+    # Exit early if data could not be loaded
     if df.empty:
-        st.warning("No data available. Check the path or file.")
+        st.warning("No data available. Please check your CSV path and file contents.")
         return
 
-    # Ensure 'group' and 'name' columns exist
-    required = {"group", "name"}
-    missing = required - set(df.columns)
+    # Validate required columns
+    expected_cols = {"group", "name"}
+    missing = expected_cols - set(df.columns)
     if missing:
-        st.error(f"Missing columns: {', '.join(missing)}")
+        st.error(f"Missing required columns: {', '.join(missing)}")
         return
 
-    # Group selection
+    # Build and display group selector
     groups = sorted(df["group"].dropna().unique())
     if not groups:
-        st.warning("No groups found in data.")
+        st.warning("No groups found in the data. Make sure 'group' column has values.")
         return
 
-    selected_group = st.selectbox("Select a group", groups)
+    selected_group = st.selectbox("Select a group to view contacts", groups)
 
-    # Filter by selected group and display names
+    # Filter DataFrame by selected group and list names
     group_df = df[df["group"] == selected_group]
     if group_df.empty:
-        st.warning(f"No contacts found in group '{selected_group}'")
+        st.warning(f"No contacts found in group: {selected_group}")
     else:
-        st.header(f"Contacts in Group: {selected_group}")
-        # Display list of names under the selected group
-        names = group_df["name"].dropna().tolist()
-        st.write("\n".join(f"- {n}" for n in names))
+        st.subheader(f"Contacts in Group: {selected_group}")
+        for idx, row in group_df.iterrows():
+            name = row.get("name", "<Unnamed>")
+            st.write(f"- {name}")
 
-    # Refresh button
+    # Optional: Reload data
     if st.button("Refresh Data"):
         st.experimental_rerun()
 
+# Entry point
 if __name__ == "__main__":
     main()
