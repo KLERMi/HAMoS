@@ -55,55 +55,41 @@ group = st.selectbox("Select your assigned group:", [""] + groups, key='selected
 if not group:
     st.stop()
 
-# --- Prepare attendees ---
+# --- Prepare attendees for this group ---
 filtered = df[df.get('Group') == group].copy()
 if filtered.empty:
     st.info("No attendees in this group.")
     st.stop()
+# sort by hidden Last Update
 filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
 display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].rename(
     columns={'name':'Name','gender':'Gender','phone':'Phone','Updated full address':'Address'}
 )
 
-# --- Clickable names ---
+# --- 1. Select attendee via clickable boxes ---
 st.subheader(f"Select Attendee in Group {group}")
 cols = st.columns(4)
 for i, name in enumerate(display_df['Name']):
     col = cols[i % 4]
-    btn_key = f"name_btn_{i}"
-    selected = st.session_state.get('selected_name', None) == name
-    btn_class = 'selected' if selected else ('greyed' if selected else '')
-    if col.button(name, key=btn_key):
+    is_selected = st.session_state.get('selected_name') == name
+    btn = col.button(name, key=f'name_btn_{i}')
+    if btn:
         st.session_state['selected_name'] = name
-        selected = True
-        for other in display_df['Name']:
-            if other != name and st.session_state.get('selected_name') == other:
-                st.session_state.pop('selected_name')
-                st.session_state['selected_name'] = name
-# after selection, grey out others in table
+
 if 'selected_name' not in st.session_state:
     st.stop()
 selected_name = st.session_state['selected_name']
 
-# style table rows based on selection
-def highlight(row):
-    return ['' if row['Name']==selected_name else 'opacity: 0.5;' for _ in row]
-st.write(display_df.style.apply(highlight, axis=1), unsafe_allow_html=True)
-
-# --- Identify selected attendee ---
+# --- 2. Fields / action for record updates ---
 match = filtered[filtered['name'] == selected_name].iloc[0]
 idx = match.name
 row_num = idx + 2
 selected_phone = match['phone']
 
-# --- Show attendee info ---
-st.write(f"**{match.get('name','')}** — {selected_phone} — {match.get('tag','')}")
-
-# --- Action selection ---
+st.write(f"**{match.get('name','')}** — {selected_phone} — {match.get('tag','')}" )
 action = st.radio("Action:", ["Update Address","Capture Follow-Up"], key='action')
 now = datetime.now(pytz.timezone("Africa/Lagos")).strftime("%Y-%m-%d %H:%M:%S")
 
-# --- Address update flow ---
 if action == "Update Address":
     current = match.get('Updated full address','') or ''
     new_addr = st.text_input("New Address:", value=current, key='new_addr')
@@ -111,8 +97,6 @@ if action == "Update Address":
         sheet.update_cell(row_num, df.columns.get_loc('Updated full address')+1, new_addr)
         sheet.update_cell(row_num, df.columns.get_loc('Last Update')+1, now)
         st.success("Address updated successfully.")
-
-# --- Follow-up capture flow ---
 else:
     ftype = st.selectbox("Type of follow-up:", ["Call","Physical visit"], key='ftype')
     if ftype == 'Call':
@@ -121,7 +105,6 @@ else:
         result = st.selectbox("Result of visit:", ["Available","Not Available","Invalid Address"], key='result')
     soon = st.radio("Soon to be CBA member?", ["Next service","Soon"], key='soon')
     remarks = st.text_area("Remarks:", key='remarks')
-
     if st.button("Submit Follow-Up", key='submit_followup'):
         follow_cols = sorted([c for c in df.columns if c.startswith('Follow_up')], key=lambda x: int(x.replace('Follow_up','')) if x.replace('Follow_up','').isdigit() else 0)
         slot = next((c for c in follow_cols if not match.get(c)), None)
@@ -136,3 +119,8 @@ else:
         sheet.update_cell(row_num, col_idx, entry)
         sheet.update_cell(row_num, df.columns.get_loc('Last Update')+1, now)
         st.success("Follow-up report submitted.")
+
+# --- 3. List of attendees with collapse/expand ---
+with st.expander("Show/Hide Attendees List", expanded=False):
+    html = display_df.to_html(index=False)
+    st.markdown(html, unsafe_allow_html=True)
