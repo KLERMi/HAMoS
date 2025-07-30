@@ -33,7 +33,6 @@ sheet = client.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_n
 # --- Load DataFrame & ensure columns ---
 records = sheet.get_all_records()
 df = pd.DataFrame(records)
-# Ensure columns exist
 for col in ["Last Update", "Updated full address"]:
     if col not in df.columns:
         header = sheet.row_values(1)
@@ -41,7 +40,6 @@ for col in ["Last Update", "Updated full address"]:
         sheet.add_cols(1)
         sheet.update_cell(1, idx, col)
         df[col] = ""
-# Parse Last Update
 if not df.empty:
     try:
         df["Last Update"] = pd.to_datetime(df["Last Update"])
@@ -49,12 +47,11 @@ if not df.empty:
         pass
 
 # --- Coordinator flow ---
-groups = sorted(df.get('Group', []).dropna().unique())
+groups = sorted(df.get('Group', pd.Series()).dropna().unique())
 group = st.selectbox("Select your assigned group:", [""] + groups)
 if not group:
     st.stop()
 
-# Filter and sort
 filtered = df[df.get('Group') == group].copy()
 if filtered.empty:
     st.info("No attendees in this group.")
@@ -65,30 +62,25 @@ filtered = filtered.sort_values("Last Update", ascending=False, na_position='las
 st.subheader(f"Attendees – Group {group}")
 st.dataframe(filtered[["name","phone","Last Update"]], use_container_width=True)
 
-# Build options using safe column access
-opts = [f"{row.get('name','')} ({row.get('tag','')})" for _, row in filtered.iterrows()]
-selected = st.selectbox("Pick an attendee:", [""] + opts)
-if not selected:
+# Build a mapping from index to display label
+options = {idx: f"{row.get('name','')} ({row.get('tag','')})" for idx, row in filtered.iterrows()}
+selected_idx = st.selectbox("Pick an attendee:", options.keys(), format_func=lambda x: options[x])
+if selected_idx is None:
     st.stop()
 
-# Resolve selected values
-display_name, tag_part = selected.split(' (', 1)
-tag_part = tag_part.rstrip(')')
-match = filtered[(filtered.get('name') == display_name) & (filtered.get('tag') == tag_part)]
-if match.empty:
-    st.error("Could not locate the selected attendee.")
-    st.stop()
-idx = match.index[0]
+# Use the index directly
+idx = selected_idx
 row_num = idx + 2  # account for header row
+match = filtered.loc[idx]
 
 # Show selection
-st.write(f"**{match.at[idx,'name']}** — {match.at[idx,'phone']} — {match.at[idx,'tag']}")
+st.write(f"**{match['name']}** — {match['phone']} — {match['tag']}")
 
 action = st.radio("Action:", ["Update Address","Capture Follow-Up"])
 now = datetime.now(pytz.timezone("Africa/Lagos")).strftime("%Y-%m-%d %H:%M:%S")
 
 if action == "Update Address":
-    current = match.at[idx, 'Updated full address'] or ''
+    current = match.get('Updated full address','') or ''
     new_addr = st.text_input("New Address:", value=current)
     if st.button("Submit Address"):
         addr_col = df.columns.get_loc('Updated full address') + 1
@@ -108,10 +100,9 @@ else:
     remarks = st.text_area("Remarks:")
 
     if st.button("Submit Follow-Up"):
-        # Determine follow-up column
         follow_cols = sorted([c for c in df.columns if c.startswith('Follow_up')],
                              key=lambda x: int(x.replace('Follow_up','')) if x.replace('Follow_up','').isdigit() else 0)
-        slot = next((c for c in follow_cols if not match.at[idx, c]), None)
+        slot = next((c for c in follow_cols if not match.get(c)), None)
         if not slot:
             slot = f'Follow_up{len(follow_cols) + 1}'
             header = sheet.row_values(1)
@@ -125,7 +116,6 @@ else:
 
         entry = f"{slot.replace('Follow_up','')}||{ftype}||{result}||{soon}||{remarks}"
         sheet.update_cell(row_num, col_idx, entry)
-        # Update Last Update
         lu_col = df.columns.get_loc('Last Update') + 1
         sheet.update_cell(row_num, lu_col, now)
         st.success("Follow-up report submitted.")
