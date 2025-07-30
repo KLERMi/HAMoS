@@ -52,20 +52,20 @@ group = st.selectbox("Select your assigned group:", [""] + groups, key='selected
 if not group:
     st.stop()
 
-# --- Display attendees in group ---
+# --- Display attendees in group, sorted by hidden Last Update ---
 filtered = df[df.get('Group') == group].copy()
 if filtered.empty:
     st.info("No attendees in this group.")
     st.stop()
+# sort by Last Update descending (hidden column)
+filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
 st.subheader(f"Attendees in Group {group}")
-# include name, gender, phone, and address in view
 display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].rename(
     columns={'name':'Name', 'gender':'Gender', 'phone':'Phone', 'Updated full address':'Address'}
 )
 st.table(display_df)
 
 # --- Pick an attendee ---
-filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
 name_to_phone = {row['name']: row['phone'] for _, row in filtered.iterrows()}
 selected_name = st.selectbox("Pick an attendee by name:", [""] + list(name_to_phone.keys()), key='selected_name')
 if not selected_name:
