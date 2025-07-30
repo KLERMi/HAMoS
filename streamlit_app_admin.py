@@ -15,10 +15,28 @@ st.markdown("""
 .church-logo { width: 36px; height: auto; }
 .church-name { font-family: 'Aptos Light', sans-serif; font-size: 20px; color: #4472C4; margin: 0; }
 .grid-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+.grid-item {
+  flex: 1 0 calc(33.33% - 0.5rem);
+  max-width: calc(33.33% - 0.5rem);
+  box-sizing: border-box;
+}
+@media only screen and (max-width: 768px) {
+  .grid-item {
+    flex: 1 0 calc(50% - 0.5rem);
+    max-width: calc(50% - 0.5rem);
+  }
+}
+@media only screen and (max-width: 480px) {
+  .grid-item {
+    flex: 1 0 100%;
+    max-width: 100%;
+  }
 }
 .stButton>button {
   width: 100%;
@@ -26,15 +44,6 @@ st.markdown("""
   padding: 0.3rem;
   white-space: normal;
   word-wrap: break-word;
-}
-@media only screen and (max-width: 600px) {
-  .grid-container {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .stButton>button {
-    font-size: 0.7rem;
-    padding: 0.25rem;
-  }
 }
 </style>
 <div class="header-flex">
@@ -97,8 +106,11 @@ display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].renam
 st.subheader(f"Select Attendee in Group {group}")
 st.markdown('<div class="grid-container">', unsafe_allow_html=True)
 for i, name in enumerate(display_df['Name']):
-    if st.button(name, key=f'name_btn_{i}'):
-        st.session_state['selected_name'] = name
+    with st.container():
+        st.markdown('<div class="grid-item">', unsafe_allow_html=True)
+        if st.button(name, key=f'name_btn_{i}'):
+            st.session_state['selected_name'] = name
+        st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
 if 'selected_name' not in st.session_state:
