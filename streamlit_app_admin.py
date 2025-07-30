@@ -119,11 +119,11 @@ if 'selected_name' not in st.session_state:
 selected_name = st.session_state['selected_name']
 
 # --- 2. Fields / action for record updates ---
-match = filtered[filtered['name'] == selected_name]
-if match.empty:
-    st.warning("Group changed. Please reselect an attendee.")
+match_df = filtered[filtered['name'] == selected_name]
+if match_df.empty:
+    st.warning("Attendee not found in the current group. Please reselect.")
     st.stop()
-match = match.iloc[0]
+match = match_df.iloc[0]
 idx = match.name
 row_num = idx + 2
 selected_phone = match['phone']
