@@ -1,3 +1,5 @@
+# coordinator.py
+# --------------
 import streamlit as st
 import pandas as pd
 import gspread
@@ -22,8 +24,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Auth using fresh JSON secret ---
-info = st.secrets["service_account"]  # dict with all JSON fields
-# Ensure private_key has real newlines
+raw = st.secrets["service_account"]
+info = dict(raw)
 info["private_key"] = textwrap.dedent(info["private_key"]).strip()
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive"]
 creds = Credentials.from_service_account_info(info, scopes=SCOPES)
@@ -41,8 +43,10 @@ for col in ["Last Update", "Updated full address"]:
         sheet.update_cell(1, idx, col)
         df[col] = ""
 if not df.empty:
-    try: df["Last Update"] = pd.to_datetime(df["Last Update"])
-    except: pass
+    try:
+        df["Last Update"] = pd.to_datetime(df["Last Update"])
+    except:
+        pass
 
 # --- Coordinator flow ---
 groups = sorted(df['Group'].dropna().unique())
@@ -70,7 +74,8 @@ match = filtered[(filtered['name']==nm.strip())&(filtered['tag']==tg)]
 if match.empty:
     st.error("Selection error.")
     st.stop()
-idx = match.index[0]; row_num = idx+2
+idx = match.index[0]
+row_num = idx+2  # header offset
 
 st.write(f"**{match.at[idx,'name']}**  —  {match.at[idx,'phone']}  —  {match.at[idx,'tag']}")
 
@@ -89,17 +94,24 @@ if action=="Update Address":
 
 else:
     ftype = st.selectbox("Mode:", ["Call","Physical visit"])
-    res_opts = ["Not reachable","Switched off","Reached","Missed call"] if ftype=="Call" else ["Available","Not Available","Invalid Address"]
+    res_opts = (["Not reachable","Switched off","Reached","Missed call"]
+                if ftype=="Call"
+                else ["Available","Not Available","Invalid Address"])
     res = st.selectbox("Result:", res_opts)
     soon = st.radio("Soon to be member?", ["Next service","Soon"])
     rem = st.text_area("Remarks:")
     if st.button("Submit Follow-Up"):
-        fu_cols = sorted([c for c in df.columns if c.startswith("Follow_up")], key=lambda x:int(x.replace("Follow_up","")))
+        fu_cols = sorted([c for c in df.columns if c.startswith("Follow_up")],
+                         key=lambda x:int(x.replace("Follow_up","")))
         slot = next((c for c in fu_cols if not match.at[idx,c]), None)
         if not slot:
-            n = len(fu_cols)+1; slot = f"Follow_up{n}"
-            hdr = sheet.row_values(1); new_i=len(hdr)+1
-            sheet.add_cols(1); sheet.update_cell(1,new_i,slot); df[slot]=""
+            n = len(fu_cols)+1
+            slot = f"Follow_up{n}"
+            hdr = sheet.row_values(1)
+            new_i=len(hdr)+1
+            sheet.add_cols(1)
+            sheet.update_cell(1,new_i,slot)
+            df[slot]=""
             col_i=new_i
         else:
             col_i = df.columns.get_loc(slot)+1
