@@ -88,6 +88,7 @@ if not group:
 if st.session_state.get('prev_group') and st.session_state['prev_group'] != group:
     st.session_state.pop('selected_name', None)
     st.session_state['prev_group'] = group
+    st.success("Group changed")
     st.rerun()
 st.session_state['prev_group'] = group
 
@@ -120,7 +121,7 @@ selected_name = st.session_state['selected_name']
 # --- 2. Fields / action for record updates ---
 match = filtered[filtered['name'] == selected_name]
 if match.empty:
-    st.error("Selected attendee not found in current group.")
+    st.warning("Group changed. Please reselect an attendee.")
     st.stop()
 match = match.iloc[0]
 idx = match.name
