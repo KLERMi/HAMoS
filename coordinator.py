@@ -1,5 +1,3 @@
-# coordinator.py
-# --------------
 import streamlit as st
 import pandas as pd
 import gspread
@@ -35,6 +33,7 @@ sheet = client.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_n
 # --- Load DataFrame & ensure columns ---
 records = sheet.get_all_records()
 df = pd.DataFrame(records)
+# Ensure columns exist
 for col in ["Last Update", "Updated full address"]:
     if col not in df.columns:
         header = sheet.row_values(1)
@@ -42,6 +41,7 @@ for col in ["Last Update", "Updated full address"]:
         sheet.add_cols(1)
         sheet.update_cell(1, idx, col)
         df[col] = ""
+# Parse Last Update
 if not df.empty:
     try:
         df["Last Update"] = pd.to_datetime(df["Last Update"])
@@ -49,76 +49,83 @@ if not df.empty:
         pass
 
 # --- Coordinator flow ---
-groups = sorted(df['Group'].dropna().unique())
+groups = sorted(df.get('Group', []).dropna().unique())
 group = st.selectbox("Select your assigned group:", [""] + groups)
 if not group:
     st.stop()
 
-filtered = df[df['Group']==group].copy().sort_values("Last Update", ascending=False, na_position='last')
+# Filter and sort
+filtered = df[df.get('Group') == group].copy()
 if filtered.empty:
     st.info("No attendees in this group.")
     st.stop()
+filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
 
+# Display attendees
 st.subheader(f"Attendees – Group {group}")
 st.dataframe(filtered[["name","phone","Last Update"]], use_container_width=True)
 
-opts = [f"{r['name']} ({r['tag']})" for _,r in filtered.iterrows()]
-sel = st.selectbox("Pick an attendee:", [""] + opts)
-if not sel:
+# Build options using safe column access
+opts = [f"{row.get('name','')} ({row.get('tag','')})" for _, row in filtered.iterrows()]
+selected = st.selectbox("Pick an attendee:", [""] + opts)
+if not selected:
     st.stop()
 
-# Resolve selection
-nm, tg = sel.rsplit("(",1)
-tg = tg.rstrip(")")
-match = filtered[(filtered['name']==nm.strip())&(filtered['tag']==tg)]
+# Resolve selected values
+display_name, tag_part = selected.split(' (', 1)
+tag_part = tag_part.rstrip(')')
+match = filtered[(filtered.get('name') == display_name) & (filtered.get('tag') == tag_part)]
 if match.empty:
-    st.error("Selection error.")
+    st.error("Could not locate the selected attendee.")
     st.stop()
 idx = match.index[0]
-row_num = idx+2  # header offset
+row_num = idx + 2  # account for header row
 
-st.write(f"**{match.at[idx,'name']}**  —  {match.at[idx,'phone']}  —  {match.at[idx,'tag']}")
+# Show selection
+st.write(f"**{match.at[idx,'name']}** — {match.at[idx,'phone']} — {match.at[idx,'tag']}")
 
 action = st.radio("Action:", ["Update Address","Capture Follow-Up"])
 now = datetime.now(pytz.timezone("Africa/Lagos")).strftime("%Y-%m-%d %H:%M:%S")
 
-if action=="Update Address":
-    cur = match.at[idx,"Updated full address"] or ""
-    addr = st.text_input("New address:", value=cur)
+if action == "Update Address":
+    current = match.at[idx, 'Updated full address'] or ''
+    new_addr = st.text_input("New Address:", value=current)
     if st.button("Submit Address"):
-        c = df.columns.get_loc("Updated full address")+1
-        sheet.update_cell(row_num, c, addr)
-        lu = df.columns.get_loc("Last Update")+1
-        sheet.update_cell(row_num, lu, now)
-        st.success("Address updated.")
+        addr_col = df.columns.get_loc('Updated full address') + 1
+        sheet.update_cell(row_num, addr_col, new_addr)
+        lu_col = df.columns.get_loc('Last Update') + 1
+        sheet.update_cell(row_num, lu_col, now)
+        st.success("Address updated successfully.")
 
 else:
-    ftype = st.selectbox("Mode:", ["Call","Physical visit"])
-    res_opts = (["Not reachable","Switched off","Reached","Missed call"]
-                if ftype=="Call"
-                else ["Available","Not Available","Invalid Address"])
-    res = st.selectbox("Result:", res_opts)
-    soon = st.radio("Soon to be member?", ["Next service","Soon"])
-    rem = st.text_area("Remarks:")
-    if st.button("Submit Follow-Up"):
-        fu_cols = sorted([c for c in df.columns if c.startswith("Follow_up")],
-                         key=lambda x:int(x.replace("Follow_up","")))
-        slot = next((c for c in fu_cols if not match.at[idx,c]), None)
-        if not slot:
-            n = len(fu_cols)+1
-            slot = f"Follow_up{n}"
-            hdr = sheet.row_values(1)
-            new_i=len(hdr)+1
-            sheet.add_cols(1)
-            sheet.update_cell(1,new_i,slot)
-            df[slot]=""
-            col_i=new_i
-        else:
-            col_i = df.columns.get_loc(slot)+1
+    # Capture Follow-Up form
+    ftype = st.selectbox("Type of follow-up:", ["Call","Physical visit"])
+    if ftype == 'Call':
+        result = st.selectbox("Result of call:", ["Not reachable","Switched off","Reached","Missed call"])
+    else:
+        result = st.selectbox("Result of visit:", ["Available","Not Available","Invalid Address"])
+    soon = st.radio("Soon to be CBA member?", ["Next service","Soon"])
+    remarks = st.text_area("Remarks:")
 
-        seq = slot.replace("Follow_up","")
-        entry = f"{seq}||{ftype}||{res}||{soon}||{rem}"
-        sheet.update_cell(row_num, col_i, entry)
-        lu = df.columns.get_loc("Last Update")+1
-        sheet.update_cell(row_num, lu, now)
-        st.success("Follow-up saved.")
+    if st.button("Submit Follow-Up"):
+        # Determine follow-up column
+        follow_cols = sorted([c for c in df.columns if c.startswith('Follow_up')],
+                             key=lambda x: int(x.replace('Follow_up','')) if x.replace('Follow_up','').isdigit() else 0)
+        slot = next((c for c in follow_cols if not match.at[idx, c]), None)
+        if not slot:
+            slot = f'Follow_up{len(follow_cols) + 1}'
+            header = sheet.row_values(1)
+            new_idx = len(header) + 1
+            sheet.add_cols(1)
+            sheet.update_cell(1, new_idx, slot)
+            df[slot] = ''
+            col_idx = new_idx
+        else:
+            col_idx = df.columns.get_loc(slot) + 1
+
+        entry = f"{slot.replace('Follow_up','')}||{ftype}||{result}||{soon}||{remarks}"
+        sheet.update_cell(row_num, col_idx, entry)
+        # Update Last Update
+        lu_col = df.columns.get_loc('Last Update') + 1
+        sheet.update_cell(row_num, lu_col, now)
+        st.success("Follow-up report submitted.")
