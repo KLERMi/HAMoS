@@ -23,6 +23,9 @@ st.session_state.setdefault("logged_in", False)
 st.session_state.setdefault("login_error", False)
 st.session_state.setdefault("login_user", "")
 st.session_state.setdefault("login_pass", "")
+st.session_state.setdefault("selected_group", None)
+st.session_state.setdefault("prev_group", None)
+st.session_state.setdefault("selected_name", None)
 
 with st.sidebar:
     if not st.session_state.logged_in:
@@ -108,28 +111,41 @@ records = sheet.get_all_records()
 df = pd.DataFrame(records)
 df['phone'] = df['phone'].astype(str).str.strip()
 
+# --- Simulated Grouping (you can replace this with actual logic) ---
+group_list = sorted(df['group'].unique()) if 'group' in df.columns else ['Default']
+st.session_state.selected_group = st.selectbox("Select Group", group_list)
+
+# --- Group change detection ---
+if st.session_state.prev_group and st.session_state.selected_group != st.session_state.prev_group:
+    st.session_state.selected_name = None
+    st.session_state.prev_group = st.session_state.selected_group
+    st.warning("Group changed. Please re-enter Tag ID or Phone Number.")
+    st.stop()
+else:
+    st.session_state.prev_group = st.session_state.selected_group
+
 # --- Lookup & Update Services ---
 st.subheader("🔍 Lookup and Update Services")
 q = st.text_input("Enter Tag ID or Phone Number").strip()
 
 if q:
     q_up = q.upper()
-    filtered = df[
-        (df['tag'].astype(str).str.upper() == q_up) |
-        (df['phone'] == q)
+    filtered = df[df['group'] == st.session_state.selected_group]
+    filtered = filtered[
+        (filtered['tag'].astype(str).str.upper() == q_up) |
+        (filtered['phone'] == q)
     ]
 
     if filtered.empty:
         st.warning("No matching record found.")
     else:
-        # Pull the first matching record
+        # Pull the first matching record safely
         rec = filtered.iloc[0]
 
         # Display key details
         st.markdown(f"**Name:** {rec.get('name', '—')}")
         st.markdown(f"**Phone:** {rec.get('phone', '—')}")
         st.markdown(f"**Tag ID:** {rec.get('tag', '—')}")
-        # Display membership status
         st.markdown(f"**Membership:** {rec.get('membership', '')}")
 
         # Registered services
