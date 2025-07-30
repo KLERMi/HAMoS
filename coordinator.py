@@ -21,7 +21,7 @@ st.markdown("""
 <hr>
 """, unsafe_allow_html=True)
 
-# --- Auth using fresh JSON secret ---
+# --- Auth using service account ---
 raw = st.secrets["service_account"]
 info = dict(raw)
 info["private_key"] = textwrap.dedent(info["private_key"]).strip()
@@ -30,7 +30,7 @@ creds = Credentials.from_service_account_info(info, scopes=SCOPES)
 client = gspread.authorize(creds)
 sheet = client.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
 
-# --- Load DataFrame & ensure columns ---
+# --- Load data ---
 records = sheet.get_all_records()
 df = pd.DataFrame(records)
 for col in ["Last Update", "Updated full address"]:
@@ -46,19 +46,22 @@ if not df.empty:
     except:
         pass
 
-# --- Step: Group Selection ---
+# --- Group selection ---
 groups = sorted(df.get('Group', pd.Series()).dropna().unique())
 group = st.selectbox("Select your assigned group:", [""] + groups, key='selected_group')
 if not group:
     st.stop()
 
-# --- Select attendee ---
+# --- Display attendees in group ---
 filtered = df[df.get('Group') == group].copy()
 if filtered.empty:
     st.info("No attendees in this group.")
     st.stop()
-filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
+st.subheader(f"Attendees in Group {group}")
+st.table(filtered[['name', 'gender', 'phone']])
 
+# --- Pick an attendee ---
+filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
 name_to_phone = {row['name']: row['phone'] for _, row in filtered.iterrows()}
 selected_name = st.selectbox("Pick an attendee by name:", [""] + list(name_to_phone.keys()), key='selected_name')
 if not selected_name:
@@ -68,14 +71,14 @@ match = filtered[filtered['phone'] == selected_phone].iloc[0]
 idx = match.name
 row_num = idx + 2
 
-# --- Display attendee info ---
-st.write(f"**{match.get('name','')}** — {selected_phone} — {match.get('tag','')} ")
+# --- Show attendee info ---
+st.write(f"**{match.get('name','')}** — {selected_phone} — {match.get('tag','')}")
 
-# --- Action selection ---
+# --- Choose action ---
 action = st.radio("Action:", ["Update Address","Capture Follow-Up"], key='action')
 now = datetime.now(pytz.timezone("Africa/Lagos")).strftime("%Y-%m-%d %H:%M:%S")
 
-# --- Handle Update Address ---
+# --- Address update flow ---
 if action == "Update Address":
     current = match.get('Updated full address','') or ''
     new_addr = st.text_input("New Address:", value=current, key='new_addr')
@@ -84,7 +87,7 @@ if action == "Update Address":
         sheet.update_cell(row_num, df.columns.get_loc('Last Update')+1, now)
         st.success("Address updated successfully.")
 
-# --- Handle Capture Follow-Up ---
+# --- Follow-up capture flow ---
 else:
     ftype = st.selectbox("Type of follow-up:", ["Call","Physical visit"], key='ftype')
     if ftype == 'Call':
