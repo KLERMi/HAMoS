@@ -56,9 +56,10 @@ if not group:
     st.stop()
 
 # --- Reset attendee selection if group changes ---
-if 'prev_group' in st.session_state and st.session_state['prev_group'] != group:
+if st.session_state.get('prev_group') and st.session_state['prev_group'] != group:
     st.session_state.pop('selected_name', None)
-    st.experimental_rerun()
+    st.session_state['prev_group'] = group
+    st.stop()
 st.session_state['prev_group'] = group
 
 # --- Prepare attendees for this group ---
