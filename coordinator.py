@@ -6,10 +6,6 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 import pytz
 
-# --- Silence errors in frontend ---
-st.set_option('server.showErrorDetails', False)
-st.set_option('server.developmentMode', False)
-
 # --- Main application wrapped to catch exceptions ---
 def main():
     # --- Page setup ---
@@ -143,5 +139,5 @@ if __name__ == '__main__':
     try:
         main()
     except Exception:
-        # Log the exception as needed, but hide details from the user
+        # Show generic message, errors logged elsewhere
         st.error("An unexpected error occurred. Please try again later.")
