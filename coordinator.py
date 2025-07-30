@@ -1,35 +1,35 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 from datetime import datetime
 
-# Load credentials
-creds_dict = st.secrets["service_account"]
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+# Setup credentials
+scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+creds = Credentials.from_service_account_info(st.secrets["service_account"], scopes=scope)
 client = gspread.authorize(creds)
 
-# Load sheet
+# Load Google Sheet
 sheet = client.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 
-# Utilities
+# Timestamp
 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+# State reset utility
 def reset_state():
     for k in list(st.session_state.keys()):
         del st.session_state[k]
 
-# Select name to lookup by phone
+# Dropdown by name, fetch phone + row
 names = df["name"].dropna().unique()
 selected_name = st.selectbox("Select a name to follow up", names)
 match = df[df["name"] == selected_name].iloc[0]
 phone = match["phone"]
-row_num = df[df["phone"] == phone].index[0] + 2  # +2 for header + 1-indexing
+row_num = df[df["phone"] == phone].index[0] + 2  # header row + 1-indexing
 
-# Action selector
+# Action radio
 action = st.radio("Choose an action", ["View", "Update Address", "Capture Follow-Up"])
 
 if action == "View":
@@ -43,7 +43,7 @@ elif action == "Update Address":
     if st.button("Submit Address"):
         sheet.update_cell(row_num, df.columns.get_loc("Updated full address") + 1, new_addr)
         sheet.update_cell(row_num, df.columns.get_loc("Last Update") + 1, now)
-        st.success("Address updated successfully.")
+        st.success("Address updated.")
 
     col1, col2 = st.columns(2)
     with col1:
