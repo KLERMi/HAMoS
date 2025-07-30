@@ -1,60 +1,70 @@
 import streamlit as st
 import pandas as pd
 
-# Load your data into a DataFrame
-@st.cache_data
+# Cache data loading for performance
 def load_data(path: str) -> pd.DataFrame:
-    return pd.read_csv(path)
+    try:
+        df = pd.read_csv(path)
+        return df
+    except Exception as e:
+        st.error(f"Failed to load data: {e}")
+        return pd.DataFrame()
+
+@st.cache_data
+def cached_load(path: str) -> pd.DataFrame:
+    return load_data(path)
 
 def main():
     st.title("Coordinator App")
 
-    # Replace with your actual data path
+    # Sidebar input for data path
     data_path = st.sidebar.text_input("Data CSV path", "data/contacts.csv")
-    try:
-        df = load_data(data_path)
-    except Exception as e:
-        st.error(f"Failed to load data: {e}")
+    df = cached_load(data_path)
+
+    if df.empty:
+        st.warning("No data available. Please check the CSV path or file contents.")
         return
 
-    # Ensure required columns exist
-    required_cols = {'name', 'phone'}
-    if not required_cols.issubset(df.columns):
-        st.error(f"Data is missing required columns: {required_cols - set(df.columns)}")
+    # Verify required columns
+    required_cols = {"name", "phone"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        st.error(f"Missing required columns: {', '.join(missing)}")
         return
 
-    # Create mapping of names to phones (first occurrence)
-    name_to_phone = df.groupby('name')['phone'].first().to_dict()
-
-    # Select a name
+    # Build mapping of name to phone (first occurrence)
+    name_to_phone = df.groupby("name")["phone"].first().to_dict()
     names = sorted(name_to_phone.keys())
+
     if not names:
-        st.warning("No names available in the data.")
+        st.warning("No contacts found in the data.")
         return
 
     selected_name = st.selectbox("Select a contact", names)
 
-    # Lookup phone safely
+    # Safe phone lookup
     selected_phone = name_to_phone.get(selected_name)
-    if not selected_phone:
-        st.error(f"No phone number found for '{selected_name}'")
-    else:
+    if selected_phone:
         st.write(f"**Phone:** {selected_phone}")
+    else:
+        st.error(f"No phone number found for '{selected_name}'")
 
-    # Further filtering example
     st.markdown("---")
     st.header("Contact Details")
 
-    filtered = df[df['name'] == selected_name]
+    # Filter and display details
+    filtered = df[df["name"] == selected_name]
     if filtered.empty:
         st.warning(f"No detailed record found for '{selected_name}'")
     else:
-        # Display the first matching record or all
-        st.write(filtered.iloc[0])  # or st.table(filtered)
+        # Show the first row of the filtered DataFrame
+        record = filtered.iloc[0]
+        for col, val in record.items():
+            st.write(f"**{col.capitalize()}:** {val}")
 
-    # Example of triggering rerun safely
+    # Button to refresh (rerun) the app
     if st.button("Refresh Data"):
         st.experimental_rerun()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
