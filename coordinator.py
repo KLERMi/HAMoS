@@ -8,24 +8,32 @@ import pytz
 
 # --- Page setup ---
 st.set_page_config(page_title="Follow-Up Tracker", layout="centered")
-# Responsive CSS for compact button grid
+# Responsive CSS for button grid
 st.markdown("""
 <style>
 .header-flex { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
 .church-logo { width: 36px; height: auto; }
 .church-name { font-family: 'Aptos Light', sans-serif; font-size: 20px; color: #4472C4; margin: 0; }
-/* Compact button style */
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
 .stButton>button {
-  margin: 0.25rem;
-  padding: 0.3rem 0.5rem;
+  width: 100%;
   font-size: 0.8rem;
-  width: calc(33% - 0.5rem);
+  padding: 0.3rem;
+  white-space: normal;
+  word-wrap: break-word;
 }
 @media only screen and (max-width: 600px) {
+  .grid-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .stButton>button {
-    width: calc(50% - 0.5rem);
-    padding: 0.2rem 0.4rem;
     font-size: 0.7rem;
+    padding: 0.25rem;
   }
 }
 </style>
@@ -85,11 +93,13 @@ display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].renam
     columns={'name':'Name','gender':'Gender','phone':'Phone','Updated full address':'Address'}
 )
 
-# --- 1. Select attendee via compact clickable buttons ---
+# --- 1. Select attendee via clickable buttons ---
 st.subheader(f"Select Attendee in Group {group}")
+st.markdown('<div class="grid-container">', unsafe_allow_html=True)
 for i, name in enumerate(display_df['Name']):
     if st.button(name, key=f'name_btn_{i}'):
         st.session_state['selected_name'] = name
+st.markdown('</div>', unsafe_allow_html=True)
 
 if 'selected_name' not in st.session_state:
     st.stop()
