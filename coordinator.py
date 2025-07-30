@@ -52,12 +52,9 @@ def reset_state():
         if key in st.session_state:
             del st.session_state[key]
 
-def pick_next_attendee(filtered_df):
-    seen_phones = set(df[df['Last Update'].notna()]['phone'])
-    unseen = filtered_df[~filtered_df['phone'].isin(seen_phones)]
-    if not unseen.empty:
-        return unseen.iloc[0]['name']
-    return filtered_df.sample(1).iloc[0]['name']
+# Callback to switch to follow-up
+def go_to_followup():
+    st.session_state.action = "Capture Follow-Up"
 
 # --- Step 1: Group Selection ---
 groups = sorted(df.get('Group', pd.Series()).dropna().unique())
@@ -76,7 +73,9 @@ name_to_phone = {row['name']: row['phone'] for _, row in filtered.iterrows()}
 
 # Auto-select if no name is already picked
 if 'selected_name' not in st.session_state:
-    st.session_state['selected_name'] = pick_next_attendee(filtered)
+    seen_phones = set(df[df['Last Update'].notna()]['phone'])
+    unseen = filtered[~filtered['phone'].isin(seen_phones)]
+    st.session_state['selected_name'] = unseen.iloc[0]['name'] if not unseen.empty else filtered.sample(1).iloc[0]['name']
 
 selected_name = st.session_state['selected_name']
 selected_phone = name_to_phone[selected_name]
@@ -102,11 +101,8 @@ if action == "Update Address":
     if st.button("Complete", key='complete_addr'):
         reset_state()
         st.experimental_rerun()
-        st.stop()
-    if st.button("Next", key='next_to_followup'):
-        st.session_state['action'] = "Capture Follow-Up"
+    if st.button("Next", key='next_to_followup', on_click=go_to_followup):
         st.experimental_rerun()
-        st.stop()
 
 # --- Handle Capture Follow-Up ---
 else:
@@ -136,4 +132,3 @@ else:
     if st.button("Complete", key='complete_followup'):
         reset_state()
         st.experimental_rerun()
-        st.stop()
