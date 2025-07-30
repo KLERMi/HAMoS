@@ -58,7 +58,11 @@ if filtered.empty:
     st.info("No attendees in this group.")
     st.stop()
 st.subheader(f"Attendees in Group {group}")
-st.table(filtered[['name', 'gender', 'phone']])
+# include name, gender, phone, and address in view
+display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].rename(
+    columns={'name':'Name', 'gender':'Gender', 'phone':'Phone', 'Updated full address':'Address'}
+)
+st.table(display_df)
 
 # --- Pick an attendee ---
 filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
