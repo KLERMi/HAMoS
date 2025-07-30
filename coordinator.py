@@ -60,10 +60,12 @@ if filtered.empty:
 # sort by Last Update descending (hidden column)
 filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
 st.subheader(f"Attendees in Group {group}")
+# prepare display without index
 display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].rename(
     columns={'name':'Name', 'gender':'Gender', 'phone':'Phone', 'Updated full address':'Address'}
 )
-st.table(display_df)
+# render markdown table to hide index
+st.markdown(display_df.to_markdown(index=False), unsafe_allow_html=False)
 
 # --- Pick an attendee ---
 name_to_phone = {row['name']: row['phone'] for _, row in filtered.iterrows()}
