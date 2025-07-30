@@ -101,28 +101,25 @@ SCOPES = [
 ]
 credentials = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
 gc = gspread.authorize(credentials)
-sheet = (
-    gc.open_by_key(st.secrets["sheet_id"])
-      .worksheet(st.secrets["sheet_name"])
-)
+sheet = gc.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
 
 # --- Load DataFrame ---
 records = sheet.get_all_records()
 df = pd.DataFrame(records)
 df['phone'] = df['phone'].astype(str).str.strip()
 
-# --- Simulated Grouping (you can replace this with actual logic) ---
+# --- Group selection ---
 group_list = sorted(df['group'].unique()) if 'group' in df.columns else ['Default']
-st.session_state.selected_group = st.selectbox("Select Group", group_list)
+selected_group = st.selectbox("Select Group", group_list, key="selected_group")
 
-# --- Group change detection ---
-if st.session_state.prev_group and st.session_state.selected_group != st.session_state.prev_group:
+# Detect group change and reset selected_name
+if st.session_state.prev_group and selected_group != st.session_state.prev_group:
     st.session_state.selected_name = None
-    st.session_state.prev_group = st.session_state.selected_group
+    st.session_state.prev_group = selected_group
     st.warning("Group changed. Please re-enter Tag ID or Phone Number.")
     st.stop()
 else:
-    st.session_state.prev_group = st.session_state.selected_group
+    st.session_state.prev_group = selected_group
 
 # --- Lookup & Update Services ---
 st.subheader("🔍 Lookup and Update Services")
@@ -130,7 +127,7 @@ q = st.text_input("Enter Tag ID or Phone Number").strip()
 
 if q:
     q_up = q.upper()
-    filtered = df[df['group'] == st.session_state.selected_group]
+    filtered = df[df['group'] == selected_group]
     filtered = filtered[
         (filtered['tag'].astype(str).str.upper() == q_up) |
         (filtered['phone'] == q)
@@ -139,49 +136,55 @@ if q:
     if filtered.empty:
         st.warning("No matching record found.")
     else:
-        # Pull the first matching record safely
-        rec = filtered.iloc[0]
+        # Protect against empty selection
+        match_df = filtered
+        if match_df.empty:
+            st.warning("Name not found in selected group.")
+            st.session_state.selected_name = None
+            st.stop()
+        else:
+            rec = match_df.iloc[0]
 
-        # Display key details
-        st.markdown(f"**Name:** {rec.get('name', '—')}")
-        st.markdown(f"**Phone:** {rec.get('phone', '—')}")
-        st.markdown(f"**Tag ID:** {rec.get('tag', '—')}")
-        st.markdown(f"**Membership:** {rec.get('membership', '')}")
+            # Display key details
+            st.markdown(f"**Name:** {rec.get('name', '—')}")
+            st.markdown(f"**Phone:** {rec.get('phone', '—')}")
+            st.markdown(f"**Tag ID:** {rec.get('tag', '—')}")
+            st.markdown(f"**Membership:** {rec.get('membership', '')}")
 
-        # Registered services
-        st.markdown("**Registered Services:**")
-        services = rec.get('services', '')
-        services = [s.strip() for s in services.split(',')] if services else []
+            # Registered services
+            st.markdown("**Registered Services:**")
+            services = rec.get('services', '')
+            services = [s.strip() for s in services.split(',')] if services else []
 
-        for svc in services:
-            st.write(f"- {svc}")
+            for svc in services:
+                st.write(f"- {svc}")
 
-        # --- Updated "Mark Services Received" block ---
-        st.markdown("**Mark Services Received:**")
-        col_name = "Services Received"
+            # --- Updated "Mark Services Received" block ---
+            st.markdown("**Mark Services Received:**")
+            col_name = "Services Received"
 
-        # 1) Ensure the column exists
-        if col_name not in df.columns:
-            sheet.add_cols(1)
-            header_row = sheet.row_values(1)
-            new_col_idx = len(header_row) + 1
-            sheet.update_cell(1, new_col_idx, col_name)
-            df[col_name] = ""
+            # 1) Ensure the column exists
+            if col_name not in df.columns:
+                sheet.add_cols(1)
+                header_row = sheet.row_values(1)
+                new_col_idx = len(header_row) + 1
+                sheet.update_cell(1, new_col_idx, col_name)
+                df[col_name] = ""
 
-        # 2) Render checkboxes with unique keys
-        received = []
-        row_number = filtered.index[0] + 2  # header row offset
-        for svc in services:
-            key = f"svc_{row_number}_{svc}"
-            if st.checkbox(svc, key=key):
-                received.append(svc)
+            # 2) Render checkboxes with unique keys
+            received = []
+            row_number = match_df.index[0] + 2  # header row offset
+            for svc in services:
+                key = f"svc_{row_number}_{svc}"
+                if st.checkbox(svc, key=key):
+                    received.append(svc)
 
-        # 3) On submit, update via update_cell and patch local df
-        if st.button("Submit Update"):
-            col_idx = df.columns.get_loc(col_name) + 1
-            sheet.update_cell(row_number, col_idx, ", ".join(received))
-            df.at[filtered.index[0], col_name] = ", ".join(received)
-            st.success("Updated successfully.")
+            # 3) On submit, update via update_cell and patch local df
+            if st.button("Submit Update"):
+                col_idx = df.columns.get_loc(col_name) + 1
+                sheet.update_cell(row_number, col_idx, ", ".join(received))
+                df.at[match_df.index[0], col_name] = ", ".join(received)
+                st.success("Updated successfully.")
 
 # --- Download All Records ---
 st.markdown("---")
