@@ -82,10 +82,10 @@ display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].renam
 
 # --- 1. Select attendee via compact clickable boxes ---
 st.subheader(f"Select Attendee in Group {group}")
-# Use 2 columns for better mobile fit
-grid_cols = st.columns(2)
+# Use 3 columns for compact mobile layout
+grid_cols = st.columns(3)
 for i, name in enumerate(display_df['Name']):
-    col = grid_cols[i % 2]
+    col = grid_cols[i % 3]
     if col.button(name, key=f'name_btn_{i}', help="Tap to select"):  # touch-friendly
         st.session_state['selected_name'] = name
 
