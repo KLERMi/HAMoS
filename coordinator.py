@@ -55,6 +55,12 @@ group = st.selectbox("Select your assigned group:", [""] + groups, key='selected
 if not group:
     st.stop()
 
+# --- Reset attendee selection if group changes ---
+if 'prev_group' in st.session_state and st.session_state['prev_group'] != group:
+    st.session_state.pop('selected_name', None)
+    st.experimental_rerun()
+st.session_state['prev_group'] = group
+
 # --- Prepare attendees for this group ---
 filtered = df[df.get('Group') == group].copy()
 if filtered.empty:
@@ -71,9 +77,7 @@ st.subheader(f"Select Attendee in Group {group}")
 cols = st.columns(4)
 for i, name in enumerate(display_df['Name']):
     col = cols[i % 4]
-    is_selected = st.session_state.get('selected_name') == name
-    btn = col.button(name, key=f'name_btn_{i}')
-    if btn:
+    if col.button(name, key=f'name_btn_{i}'):
         st.session_state['selected_name'] = name
 
 if 'selected_name' not in st.session_state:
@@ -81,7 +85,11 @@ if 'selected_name' not in st.session_state:
 selected_name = st.session_state['selected_name']
 
 # --- 2. Fields / action for record updates ---
-match = filtered[filtered['name'] == selected_name].iloc[0]
+match = filtered[filtered['name'] == selected_name]
+if match.empty:
+    st.error("Selected attendee not found in current group.")
+    st.stop()
+match = match.iloc[0]
 idx = match.name
 row_num = idx + 2
 selected_phone = match['phone']
