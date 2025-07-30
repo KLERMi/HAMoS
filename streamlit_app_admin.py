@@ -1,64 +1,155 @@
 import streamlit as st
 import pandas as pd
+import gspread
+import textwrap
+from google.oauth2.service_account import Credentials
+from datetime import datetime
+import pytz
 
-# Load data with error handling
-def load_data(path: str) -> pd.DataFrame:
+# --- Page setup ---
+st.set_page_config(page_title="Follow-Up Tracker", layout="centered")
+# Responsive CSS for button grid
+st.markdown("""
+<style>
+.header-flex { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+.church-logo { width: 36px; height: auto; }
+.church-name { font-family: 'Aptos Light', sans-serif; font-size: 20px; color: #4472C4; margin: 0; }
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.stButton>button {
+  width: 100%;
+  font-size: 0.8rem;
+  padding: 0.3rem;
+  white-space: normal;
+  word-wrap: break-word;
+}
+@media only screen and (max-width: 600px) {
+  .grid-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .stButton>button {
+    font-size: 0.7rem;
+    padding: 0.25rem;
+  }
+}
+</style>
+<div class="header-flex">
+  <img class="church-logo" src="https://raw.githubusercontent.com/KLERMi/HAMoS/main/cropped_image.png" />
+  <p class="church-name">Christ Base Assembly - Follow-Up</p>
+</div>
+<hr>
+""", unsafe_allow_html=True)
+
+# --- Auth using service account ---
+raw = st.secrets["service_account"]
+info = dict(raw)
+info["private_key"] = textwrap.dedent(info["private_key"]).strip()
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive"]
+creds = Credentials.from_service_account_info(info, scopes=SCOPES)
+client = gspread.authorize(creds)
+sheet = client.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
+
+# --- Load data ---
+records = sheet.get_all_records()
+df = pd.DataFrame(records)
+for col in ["Last Update", "Updated full address"]:
+    if col not in df.columns:
+        header = sheet.row_values(1)
+        idx = len(header) + 1
+        sheet.add_cols(1)
+        sheet.update_cell(1, idx, col)
+        df[col] = ""
+if not df.empty:
     try:
-        return pd.read_csv(path)
-    except Exception as e:
-        st.error(f"Failed to load data: {e}")
-        return pd.DataFrame()
+        df["Last Update"] = pd.to_datetime(df["Last Update"])
+    except:
+        pass
 
-@st.cache_data
-# Cached loader to avoid re-reading CSV on every rerun
-def get_data(path: str) -> pd.DataFrame:
-    return load_data(path)
+# --- Group selection ---
+groups = sorted(df.get('Group', pd.Series()).dropna().unique())
+group = st.selectbox("Select your assigned group:", [""] + groups, key='selected_group')
+if not group:
+    st.stop()
 
-# Main app function
-def main():
-    st.title("Coordinator App")
+# --- Reset attendee selection if group changes ---
+if st.session_state.get('prev_group') and st.session_state['prev_group'] != group:
+    st.session_state.pop('selected_name', None)
+    st.session_state['prev_group'] = group
+    st.stop()
+st.session_state['prev_group'] = group
 
-    # Sidebar: CSV path input
-    data_path = st.sidebar.text_input(
-        "Data CSV Path (must include 'group' & 'name' columns)",
-        "data/contacts.csv"
-    )
-    df = get_data(data_path)
+# --- Prepare attendees for this group ---
+filtered = df[df.get('Group') == group].copy()
+if filtered.empty:
+    st.info("No attendees in this group.")
+    st.stop()
+# sort by hidden Last Update
+filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
+display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].rename(
+    columns={'name':'Name','gender':'Gender','phone':'Phone','Updated full address':'Address'}
+)
 
-    # Exit early if data could not be loaded
-    if df.empty:
-        st.warning("No data available. Please check your CSV path and file contents.")
-        return
+# --- 1. Select attendee via clickable buttons ---
+st.subheader(f"Select Attendee in Group {group}")
+st.markdown('<div class="grid-container">', unsafe_allow_html=True)
+for i, name in enumerate(display_df['Name']):
+    if st.button(name, key=f'name_btn_{i}'):
+        st.session_state['selected_name'] = name
+st.markdown('</div>', unsafe_allow_html=True)
 
-    # Validate required columns
-    expected_cols = {"group", "name"}
-    missing = expected_cols - set(df.columns)
-    if missing:
-        st.error(f"Missing required columns: {', '.join(missing)}")
-        return
+if 'selected_name' not in st.session_state:
+    st.stop()
+selected_name = st.session_state['selected_name']
 
-    # Build and display group selector
-    groups = sorted(df["group"].dropna().unique())
-    if not groups:
-        st.warning("No groups found in the data. Make sure 'group' column has values.")
-        return
+# --- 2. Fields / action for record updates ---
+match = filtered[filtered['name'] == selected_name]
+if match.empty:
+    st.error("Selected attendee not found in current group.")
+    st.stop()
+match = match.iloc[0]
+idx = match.name
+row_num = idx + 2
+selected_phone = match['phone']
 
-    selected_group = st.selectbox("Select a group to view contacts", groups)
+st.write(f"**{match.get('name','')}** — {selected_phone} — {match.get('tag','')}" )
+action = st.radio("Action:", ["Update Address","Capture Follow-Up"], key='action')
+now = datetime.now(pytz.timezone("Africa/Lagos")).strftime("%Y-%m-%d %H:%M:%S")
 
-    # Filter DataFrame by selected group and list names
-    group_df = df[df["group"] == selected_group]
-    if group_df.empty:
-        st.warning(f"No contacts found in group: {selected_group}")
+if action == "Update Address":
+    current = match.get('Updated full address','') or ''
+    new_addr = st.text_input("New Address:", value=current, key='new_addr')
+    if st.button("Submit Address", key='submit_addr'):
+        sheet.update_cell(row_num, df.columns.get_loc('Updated full address')+1, new_addr)
+        sheet.update_cell(row_num, df.columns.get_loc('Last Update')+1, now)
+        st.success("Address updated successfully.")
+else:
+    ftype = st.selectbox("Type of follow-up:", ["Call","Physical visit"], key='ftype')
+    if ftype == 'Call':
+        result = st.selectbox("Result of call:", ["Not reachable","Switched off","Reached","Missed call"], key='result')
     else:
-        st.subheader(f"Contacts in Group: {selected_group}")
-        for idx, row in group_df.iterrows():
-            name = row.get("name", "<Unnamed>")
-            st.write(f"- {name}")
+        result = st.selectbox("Result of visit:", ["Available","Not Available","Invalid Address"], key='result')
+    soon = st.radio("Soon to be CBA member?", ["Next service","Soon"], key='soon')
+    remarks = st.text_area("Remarks:", key='remarks')
+    if st.button("Submit Follow-Up", key='submit_followup'):
+        follow_cols = sorted([c for c in df.columns if c.startswith('Follow_up')], key=lambda x: int(x.replace('Follow_up','')) if x.replace('Follow_up','').isdigit() else 0)
+        slot = next((c for c in follow_cols if not match.get(c)), None)
+        if not slot:
+            slot = f'Follow_up{len(follow_cols)+1}'
+            header = sheet.row_values(1)
+            new_idx = len(header)+1
+            sheet.add_cols(1)
+            sheet.update_cell(1, new_idx, slot)
+        col_idx = df.columns.get_loc(slot)+1
+        entry = f"{slot.replace('Follow_up','')}||{ftype}||{result}||{soon}||{remarks}"
+        sheet.update_cell(row_num, col_idx, entry)
+        sheet.update_cell(row_num, df.columns.get_loc('Last Update')+1, now)
+        st.success("Follow-up report submitted.")
 
-    # Optional: Reload data
-    if st.button("Refresh Data"):
-        st.experimental_rerun()
-
-# Entry point
-if __name__ == "__main__":
-    main()
+# --- 3. List of attendees with collapse/expand ---
+with st.expander("Show/Hide Attendees List", expanded=False):
+    html = display_df.to_html(index=False)
+    st.markdown(html, unsafe_allow_html=True)
