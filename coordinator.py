@@ -6,6 +6,11 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 import pytz
 
+# --- Handle clean rerun before UI loads ---
+if 'rerun_triggered' in st.session_state:
+    del st.session_state['rerun_triggered']
+    st.experimental_rerun()
+
 # --- Page setup ---
 st.set_page_config(page_title="Follow-Up Tracker", layout="centered")
 st.markdown("""
@@ -101,11 +106,11 @@ if action == "Update Address":
         st.success("Address updated successfully.")
     if st.button("Complete", key='complete_addr'):
         reset_state()
-        st.experimental_rerun()
+        st.session_state['rerun_triggered'] = True
         st.stop()
     if st.button("Next", key='next_to_followup'):
         st.session_state['action'] = "Capture Follow-Up"
-        st.experimental_rerun()
+        st.session_state['rerun_triggered'] = True
         st.stop()
 
 # --- Handle Capture Follow-Up ---
@@ -135,5 +140,5 @@ else:
         st.success("Follow-up report submitted.")
     if st.button("Complete", key='complete_followup'):
         reset_state()
-        st.experimental_rerun()
+        st.session_state['rerun_triggered'] = True
         st.stop()
