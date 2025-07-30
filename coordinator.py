@@ -8,43 +8,14 @@ import pytz
 
 # --- Page setup ---
 st.set_page_config(page_title="Follow-Up Tracker", layout="centered")
-# Responsive CSS for button grid
 st.markdown("""
 <style>
-.header-flex { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
-.church-logo { width: 36px; height: auto; }
-.church-name { font-family: 'Aptos Light', sans-serif; font-size: 20px; color: #4472C4; margin: 0; }
-.grid-container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-.grid-item {
-  flex: 1 0 calc(33.33% - 0.5rem);
-  max-width: calc(33.33% - 0.5rem);
-  box-sizing: border-box;
-}
-@media only screen and (max-width: 768px) {
-  .grid-item {
-    flex: 1 0 calc(50% - 0.5rem);
-    max-width: calc(50% - 0.5rem);
-  }
-}
-@media only screen and (max-width: 480px) {
-  .grid-item {
-    flex: 1 0 100%;
-    max-width: 100%;
-  }
-}
-.stButton>button {
-  width: 100%;
-  font-size: 0.8rem;
-  padding: 0.3rem;
-  white-space: normal;
-  word-wrap: break-word;
-}
+.header-flex { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+.church-logo { width: 48px; height: auto; }
+.church-name { font-family: 'Aptos Light', sans-serif; font-size: 24px; color: #4472C4; margin: 0; }
+.name-btn { margin: 0.25rem; padding: 0.5rem 1rem; border: none; background-color: #f0f0f0; cursor: pointer; }
+.name-btn.selected { background-color: #4472C4; color: white; }
+.name-btn.greyed { opacity: 0.5; }
 </style>
 <div class="header-flex">
   <img class="church-logo" src="https://raw.githubusercontent.com/KLERMi/HAMoS/main/cropped_image.png" />
@@ -84,13 +55,6 @@ group = st.selectbox("Select your assigned group:", [""] + groups, key='selected
 if not group:
     st.stop()
 
-# --- Reset attendee selection if group changes ---
-if st.session_state.get('prev_group') and st.session_state['prev_group'] != group:
-    st.session_state.pop('selected_name', None)
-    st.session_state['prev_group'] = group
-    st.stop()
-st.session_state['prev_group'] = group
-
 # --- Prepare attendees for this group ---
 filtered = df[df.get('Group') == group].copy()
 if filtered.empty:
@@ -102,27 +66,22 @@ display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].renam
     columns={'name':'Name','gender':'Gender','phone':'Phone','Updated full address':'Address'}
 )
 
-# --- 1. Select attendee via clickable buttons ---
+# --- 1. Select attendee via clickable boxes ---
 st.subheader(f"Select Attendee in Group {group}")
-st.markdown('<div class="grid-container">', unsafe_allow_html=True)
+cols = st.columns(4)
 for i, name in enumerate(display_df['Name']):
-    with st.container():
-        st.markdown('<div class="grid-item">', unsafe_allow_html=True)
-        if st.button(name, key=f'name_btn_{i}'):
-            st.session_state['selected_name'] = name
-        st.markdown('</div>', unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+    col = cols[i % 4]
+    is_selected = st.session_state.get('selected_name') == name
+    btn = col.button(name, key=f'name_btn_{i}')
+    if btn:
+        st.session_state['selected_name'] = name
 
 if 'selected_name' not in st.session_state:
     st.stop()
 selected_name = st.session_state['selected_name']
 
 # --- 2. Fields / action for record updates ---
-match = filtered[filtered['name'] == selected_name]
-if match.empty:
-    st.error("Selected attendee not found in current group.")
-    st.stop()
-match = match.iloc[0]
+match = filtered[filtered['name'] == selected_name].iloc[0]
 idx = match.name
 row_num = idx + 2
 selected_phone = match['phone']
