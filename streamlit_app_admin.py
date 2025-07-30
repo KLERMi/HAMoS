@@ -84,24 +84,33 @@ group = st.selectbox("Select your assigned group:", [""] + groups, key='selected
 if not group:
     st.stop()
 
-# --- Reset attendee selection if group changes ---
-if st.session_state.get('prev_group') and st.session_state['prev_group'] != group:
-    st.session_state.pop('selected_name', None)
+# Reset attendee selection and default to first name when group changes
+prev = st.session_state.get('prev_group')
+if prev != group:
+    st.session_state['selected_name'] = None
     st.session_state['prev_group'] = group
-    st.success("Group changed")
-    st.rerun()
-st.session_state['prev_group'] = group
 
 # --- Prepare attendees for this group ---
 filtered = df[df.get('Group') == group].copy()
 if filtered.empty:
     st.info("No attendees in this group.")
     st.stop()
-# sort by hidden Last Update
 filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
+
 display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].rename(
     columns={'name':'Name','gender':'Gender','phone':'Phone','Updated full address':'Address'}
 )
+
+# Automatically select first attendee if none selected
+def get_default_name():
+    return display_df['Name'].iloc[0] if not display_df.empty else None
+
+if not st.session_state.get('selected_name'):
+    default_name = get_default_name()
+    if default_name:
+        st.session_state['selected_name'] = default_name
+
+selected_name = st.session_state['selected_name']
 
 # --- 1. Select attendee via clickable buttons ---
 st.subheader(f"Select Attendee in Group {group}")
@@ -114,11 +123,8 @@ for i, name in enumerate(display_df['Name']):
         st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-if 'selected_name' not in st.session_state:
-    st.stop()
-selected_name = st.session_state['selected_name']
-
 # --- 2. Fields / action for record updates ---
+# Safely find the matching record without raising IndexError
 match_df = filtered[filtered['name'] == selected_name]
 if match_df.empty:
     st.warning("Attendee not found in the current group. Please reselect.")
@@ -126,9 +132,9 @@ if match_df.empty:
 match = match_df.iloc[0]
 idx = match.name
 row_num = idx + 2
-selected_phone = match['phone']
+selected_phone = match.get('phone','')
 
-st.write(f"**{match.get('name','')}** — {selected_phone} — {match.get('tag','')}" )
+st.write(f"**{match.get('name','')}** — {selected_phone} — {match.get('tag','')}")
 action = st.radio("Action:", ["Update Address","Capture Follow-Up"], key='action')
 now = datetime.now(pytz.timezone("Africa/Lagos")).strftime("%Y-%m-%d %H:%M:%S")
 
