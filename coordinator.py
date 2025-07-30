@@ -52,13 +52,6 @@ def reset_state():
         if key in st.session_state:
             del st.session_state[key]
 
-def pick_next_attendee(filtered_df):
-    seen_phones = set(df[df['Last Update'].notna()]['phone'])
-    unseen = filtered_df[~filtered_df['phone'].isin(seen_phones)]
-    if not unseen.empty:
-        return unseen.iloc[0]['name']
-    return filtered_df.sample(1).iloc[0]['name']
-
 # --- Step 1: Group Selection ---
 groups = sorted(df.get('Group', pd.Series()).dropna().unique())
 group = st.selectbox("Select your assigned group:", [""] + groups, key='selected_group')
@@ -73,12 +66,9 @@ if filtered.empty:
 filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
 
 name_to_phone = {row['name']: row['phone'] for _, row in filtered.iterrows()}
-
-# Auto-select if no name is already picked
-if 'selected_name' not in st.session_state:
-    st.session_state['selected_name'] = pick_next_attendee(filtered)
-
-selected_name = st.session_state['selected_name']
+selected_name = st.selectbox("Pick an attendee by name:", [""] + list(name_to_phone.keys()), key='selected_name')
+if not selected_name:
+    st.stop()
 selected_phone = name_to_phone[selected_name]
 match = filtered[filtered['phone'] == selected_phone].iloc[0]
 idx = match.name
@@ -99,14 +89,15 @@ if action == "Update Address":
         sheet.update_cell(row_num, df.columns.get_loc('Updated full address')+1, new_addr)
         sheet.update_cell(row_num, df.columns.get_loc('Last Update')+1, now)
         st.success("Address updated successfully.")
-    if st.button("Complete", key='complete_addr'):
-        reset_state()
-        st.experimental_rerun()
-        st.stop()
-    if st.button("Next", key='next_to_followup'):
-        st.session_state['action'] = "Capture Follow-Up"
-        st.experimental_rerun()
-        st.stop()
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Follow Up", key='to_followup'):
+            st.session_state['action'] = "Capture Follow-Up"
+            st.experimental_rerun()
+    with col2:
+        if st.button("Next", key='next_after_addr'):
+            reset_state()
+            st.experimental_rerun()
 
 # --- Handle Capture Follow-Up ---
 else:
@@ -133,7 +124,6 @@ else:
         sheet.update_cell(row_num, col_idx, entry)
         sheet.update_cell(row_num, df.columns.get_loc('Last Update')+1, now)
         st.success("Follow-up report submitted.")
-    if st.button("Complete", key='complete_followup'):
+    if st.button("Next", key='next_after_followup'):
         reset_state()
         st.experimental_rerun()
-        st.stop()
