@@ -8,14 +8,21 @@ import pytz
 
 # --- Page setup ---
 st.set_page_config(page_title="Follow-Up Tracker", layout="centered")
+# Responsive CSS for mobile-friendly buttons
 st.markdown("""
 <style>
-.header-flex { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
-.church-logo { width: 48px; height: auto; }
-.church-name { font-family: 'Aptos Light', sans-serif; font-size: 24px; color: #4472C4; margin: 0; }
-.name-btn { margin: 0.25rem; padding: 0.5rem 1rem; border: none; background-color: #f0f0f0; cursor: pointer; }
+.header-flex { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+.church-logo { width: 36px; height: auto; }
+.church-name { font-family: 'Aptos Light', sans-serif; font-size: 20px; color: #4472C4; margin: 0; }
+.name-btn { margin: 0.15rem; padding: 0.3rem 0.6rem; border: none; background-color: #f0f0f0; cursor: pointer; font-size: 0.9rem; }
 .name-btn.selected { background-color: #4472C4; color: white; }
 .name-btn.greyed { opacity: 0.5; }
+@media only screen and (max-width: 600px) {
+  .header-flex { gap: 0.3rem; }
+  .church-logo { width: 28px; }
+  .church-name { font-size: 18px; }
+  .name-btn { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+}
 </style>
 <div class="header-flex">
   <img class="church-logo" src="https://raw.githubusercontent.com/KLERMi/HAMoS/main/cropped_image.png" />
@@ -73,12 +80,13 @@ display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].renam
     columns={'name':'Name','gender':'Gender','phone':'Phone','Updated full address':'Address'}
 )
 
-# --- 1. Select attendee via clickable boxes ---
+# --- 1. Select attendee via compact clickable boxes ---
 st.subheader(f"Select Attendee in Group {group}")
-cols = st.columns(4)
+# Use 2 columns for better mobile fit
+grid_cols = st.columns(2)
 for i, name in enumerate(display_df['Name']):
-    col = cols[i % 4]
-    if col.button(name, key=f'name_btn_{i}'):
+    col = grid_cols[i % 2]
+    if col.button(name, key=f'name_btn_{i}', help="Tap to select"):  # touch-friendly
         st.session_state['selected_name'] = name
 
 if 'selected_name' not in st.session_state:
