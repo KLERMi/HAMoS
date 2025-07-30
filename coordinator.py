@@ -47,7 +47,7 @@ st.markdown("""
 </style>
 <div class="header-flex">
   <img class="church-logo" src="https://raw.githubusercontent.com/KLERMi/HAMoS/main/cropped_image.png" />
-  <p class="church-name">Christ Base Assembly - Follow-Up</p>
+  <p class="church-name">Christ Base Assembly - Follow-Up Pad</p>
 </div>
 <hr>
 """, unsafe_allow_html=True)
