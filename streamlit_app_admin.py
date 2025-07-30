@@ -8,6 +8,7 @@ import pytz
 
 # --- Page setup ---
 st.set_page_config(page_title="Follow-Up Tracker", layout="centered")
+# Responsive CSS for button grid
 st.markdown("""
 <style>
 .header-flex { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
@@ -87,7 +88,7 @@ if not group:
 if st.session_state.get('prev_group') and st.session_state['prev_group'] != group:
     st.session_state.pop('selected_name', None)
     st.session_state['prev_group'] = group
-    st.experimental_rerun()
+    st.stop()
 st.session_state['prev_group'] = group
 
 # --- Prepare attendees for this group ---
@@ -95,6 +96,7 @@ filtered = df[df.get('Group') == group].copy()
 if filtered.empty:
     st.info("No attendees in this group.")
     st.stop()
+# sort by hidden Last Update
 filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
 display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].rename(
     columns={'name':'Name','gender':'Gender','phone':'Phone','Updated full address':'Address'}
@@ -106,11 +108,8 @@ st.markdown('<div class="grid-container">', unsafe_allow_html=True)
 for i, name in enumerate(display_df['Name']):
     with st.container():
         st.markdown('<div class="grid-item">', unsafe_allow_html=True)
-        grey_out = 'disabled' if 'selected_name' in st.session_state and st.session_state['selected_name'] != name else ''
-        button_label = f'<button {grey_out}>{name}</button>'
         if st.button(name, key=f'name_btn_{i}'):
             st.session_state['selected_name'] = name
-            st.experimental_rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -121,9 +120,8 @@ selected_name = st.session_state['selected_name']
 # --- 2. Fields / action for record updates ---
 match = filtered[filtered['name'] == selected_name]
 if match.empty:
-    st.warning("Attendee not in this group. Please reselect.")
-    st.session_state.pop('selected_name')
-    st.experimental_rerun()
+    st.error("Selected attendee not found in current group.")
+    st.stop()
 match = match.iloc[0]
 idx = match.name
 row_num = idx + 2
