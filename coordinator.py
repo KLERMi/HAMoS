@@ -46,19 +46,13 @@ if not df.empty:
     except:
         pass
 
-# --- State reset helper ---
-def reset_state():
-    for key in ['selected_name', 'action', 'ftype', 'result', 'soon', 'remarks']:
-        if key in st.session_state:
-            del st.session_state[key]
-
-# --- Step 1: Group Selection ---
+# --- Step: Group Selection ---
 groups = sorted(df.get('Group', pd.Series()).dropna().unique())
 group = st.selectbox("Select your assigned group:", [""] + groups, key='selected_group')
 if not group:
     st.stop()
 
-# --- Step 2: Filter and select attendee ---
+# --- Select attendee ---
 filtered = df[df.get('Group') == group].copy()
 if filtered.empty:
     st.info("No attendees in this group.")
@@ -77,7 +71,7 @@ row_num = idx + 2
 # --- Display attendee info ---
 st.write(f"**{match.get('name','')}** — {selected_phone} — {match.get('tag','')} ")
 
-# --- Step 3: Choose action ---
+# --- Action selection ---
 action = st.radio("Action:", ["Update Address","Capture Follow-Up"], key='action')
 now = datetime.now(pytz.timezone("Africa/Lagos")).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -89,15 +83,6 @@ if action == "Update Address":
         sheet.update_cell(row_num, df.columns.get_loc('Updated full address')+1, new_addr)
         sheet.update_cell(row_num, df.columns.get_loc('Last Update')+1, now)
         st.success("Address updated successfully.")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Follow Up", key='to_followup'):
-            st.session_state['action'] = "Capture Follow-Up"
-            st.experimental_rerun()
-    with col2:
-        if st.button("Next", key='next_after_addr'):
-            reset_state()
-            st.experimental_rerun()
 
 # --- Handle Capture Follow-Up ---
 else:
@@ -124,6 +109,3 @@ else:
         sheet.update_cell(row_num, col_idx, entry)
         sheet.update_cell(row_num, df.columns.get_loc('Last Update')+1, now)
         st.success("Follow-up report submitted.")
-    if st.button("Next", key='next_after_followup'):
-        reset_state()
-        st.experimental_rerun()
