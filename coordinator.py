@@ -101,10 +101,13 @@ display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].renam
     columns={'name':'Name','gender':'Gender','phone':'Phone','Updated full address':'Address'}
 )
 
-# --- 1. Select attendee via clickable buttons ---
+# --- 1. Search and select attendee via clickable buttons ---
 st.subheader(f"Select Attendee in Group {group}")
+search_term = st.text_input("Search attendee by name:", "")
+search_df = display_df[display_df['Name'].str.contains(search_term, case=False, na=False)] if search_term else display_df
+
 st.markdown('<div class="grid-container">', unsafe_allow_html=True)
-for i, name in enumerate(display_df['Name']):
+for i, name in enumerate(search_df['Name']):
     if st.button(name, key=f'name_btn_{i}'):
         st.session_state['selected_name'] = name
 st.markdown('</div>', unsafe_allow_html=True)
