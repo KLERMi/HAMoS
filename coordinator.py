@@ -8,7 +8,6 @@ import pytz
 
 # --- Streamlit configuration ---
 st.set_page_config(page_title="Follow-Up Tracker", layout="centered")
-st.set_option('server.showErrorDetails', False)
 
 # --- CSS and Header ---
 st.markdown("""
