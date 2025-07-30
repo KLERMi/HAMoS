@@ -62,19 +62,20 @@ filtered = filtered.sort_values("Last Update", ascending=False, na_position='las
 st.subheader(f"Attendees – Group {group}")
 st.dataframe(filtered[["name","phone","Last Update"]], use_container_width=True)
 
-# Build a mapping from index to display label
-options = {idx: f"{row.get('name','')} ({row.get('tag','')})" for idx, row in filtered.iterrows()}
-selected_idx = st.selectbox("Pick an attendee:", options.keys(), format_func=lambda x: options[x])
-if selected_idx is None:
+# Select by name, fetch by phone
+name_to_phone = {row['name']: row['phone'] for _, row in filtered.iterrows()}
+selected_name = st.selectbox("Pick an attendee by name:", [""] + list(name_to_phone.keys()))
+if not selected_name:
     st.stop()
+selected_phone = name_to_phone[selected_name]
 
-# Use the index directly
-idx = selected_idx
+# Locate record by phone
+match = filtered[filtered['phone'] == selected_phone].iloc[0]
+idx = match.name  # DataFrame index
 row_num = idx + 2  # account for header row
-match = filtered.loc[idx]
 
-# Show selection
-st.write(f"**{match['name']}** — {match['phone']} — {match['tag']}")
+# Show selection details
+st.write(f"**{match.get('name','')}** — {selected_phone} — {match.get('tag','')} ")
 
 action = st.radio("Action:", ["Update Address","Capture Follow-Up"])
 now = datetime.now(pytz.timezone("Africa/Lagos")).strftime("%Y-%m-%d %H:%M:%S")
