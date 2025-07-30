@@ -13,6 +13,9 @@ st.markdown("""
 .header-flex { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
 .church-logo { width: 48px; height: auto; }
 .church-name { font-family: 'Aptos Light', sans-serif; font-size: 24px; color: #4472C4; margin: 0; }
+.name-btn { margin: 0.25rem; padding: 0.5rem 1rem; border: none; background-color: #f0f0f0; cursor: pointer; }
+.name-btn.selected { background-color: #4472C4; color: white; }
+.name-btn.greyed { opacity: 0.5; }
 </style>
 <div class="header-flex">
   <img class="church-logo" src="https://raw.githubusercontent.com/KLERMi/HAMoS/main/cropped_image.png" />
@@ -52,35 +55,51 @@ group = st.selectbox("Select your assigned group:", [""] + groups, key='selected
 if not group:
     st.stop()
 
-# --- Display attendees in group, sorted by hidden Last Update ---
+# --- Prepare attendees ---
 filtered = df[df.get('Group') == group].copy()
 if filtered.empty:
     st.info("No attendees in this group.")
     st.stop()
-# sort by Last Update descending (hidden column)
 filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
-st.subheader(f"Attendees in Group {group}")
-
-# prepare display without index and render as HTML table
 display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].rename(
-    columns={'name':'Name', 'gender':'Gender', 'phone':'Phone', 'Updated full address':'Address'}
+    columns={'name':'Name','gender':'Gender','phone':'Phone','Updated full address':'Address'}
 )
-st.markdown(display_df.to_html(index=False), unsafe_allow_html=True)
 
-# --- Pick an attendee ---
-name_to_phone = {row['name']: row['phone'] for _, row in filtered.iterrows()}
-selected_name = st.selectbox("Pick an attendee by name:", [""] + list(name_to_phone.keys()), key='selected_name')
-if not selected_name:
+# --- Clickable names ---
+st.subheader(f"Select Attendee in Group {group}")
+cols = st.columns(4)
+for i, name in enumerate(display_df['Name']):
+    col = cols[i % 4]
+    btn_key = f"name_btn_{i}"
+    selected = st.session_state.get('selected_name', None) == name
+    btn_class = 'selected' if selected else ('greyed' if selected else '')
+    if col.button(name, key=btn_key):
+        st.session_state['selected_name'] = name
+        selected = True
+        for other in display_df['Name']:
+            if other != name and st.session_state.get('selected_name') == other:
+                st.session_state.pop('selected_name')
+                st.session_state['selected_name'] = name
+# after selection, grey out others in table
+if 'selected_name' not in st.session_state:
     st.stop()
-selected_phone = name_to_phone[selected_name]
-match = filtered[filtered['phone'] == selected_phone].iloc[0]
+selected_name = st.session_state['selected_name']
+
+# style table rows based on selection
+def highlight(row):
+    return ['' if row['Name']==selected_name else 'opacity: 0.5;' for _ in row]
+st.write(display_df.style.apply(highlight, axis=1), unsafe_allow_html=True)
+
+# --- Identify selected attendee ---
+match = filtered[filtered['name'] == selected_name].iloc[0]
 idx = match.name
 row_num = idx + 2
+selected_phone = match['phone']
 
 # --- Show attendee info ---
 st.write(f"**{match.get('name','')}** — {selected_phone} — {match.get('tag','')}")
 
-# --- Choose action ---
+# --- Action selection ---
 action = st.radio("Action:", ["Update Address","Capture Follow-Up"], key='action')
 now = datetime.now(pytz.timezone("Africa/Lagos")).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -104,8 +123,7 @@ else:
     remarks = st.text_area("Remarks:", key='remarks')
 
     if st.button("Submit Follow-Up", key='submit_followup'):
-        follow_cols = sorted([c for c in df.columns if c.startswith('Follow_up')],
-                             key=lambda x: int(x.replace('Follow_up','')) if x.replace('Follow_up','').isdigit() else 0)
+        follow_cols = sorted([c for c in df.columns if c.startswith('Follow_up')], key=lambda x: int(x.replace('Follow_up','')) if x.replace('Follow_up','').isdigit() else 0)
         slot = next((c for c in follow_cols if not match.get(c)), None)
         if not slot:
             slot = f'Follow_up{len(follow_cols)+1}'
