@@ -27,24 +27,12 @@ st.markdown("""
   box-sizing: border-box;
 }
 @media only screen and (max-width: 768px) {
-  .grid-item {
-    flex: 1 0 calc(50% - 0.5rem);
-    max-width: calc(50% - 0.5rem);
-  }
+  .grid-item { flex: 1 0 calc(50% - 0.5rem); max-width: calc(50% - 0.5rem); }
 }
 @media only screen and (max-width: 480px) {
-  .grid-item {
-    flex: 1 0 100%;
-    max-width: 100%;
-  }
+  .grid-item { flex: 1 0 100%; max-width: 100%; }
 }
-.stButton>button {
-  width: 100%;
-  font-size: 0.8rem;
-  padding: 0.3rem;
-  white-space: normal;
-  word-wrap: break-word;
-}
+.stButton>button { width: 100%; font-size: 0.8rem; padding: 0.3rem; white-space: normal; word-wrap: break-word; }
 </style>
 <div class="header-flex">
   <img class="church-logo" src="https://raw.githubusercontent.com/KLERMi/HAMoS/main/cropped_image.png" />
@@ -54,11 +42,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Auth using service account ---
-raw = st.secrets["service_account"]
-info = dict(raw)
-info["private_key"] = textwrap.dedent(info["private_key"]).strip()
+creds_info = dict(st.secrets["service_account"])
+creds_info["private_key"] = textwrap.dedent(creds_info["private_key"]).strip()
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive"]
-creds = Credentials.from_service_account_info(info, scopes=SCOPES)
+creds = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
 client = gspread.authorize(creds)
 sheet = client.open_by_key(st.secrets["sheet_id"]).worksheet(st.secrets["sheet_name"])
 
@@ -73,102 +60,97 @@ for col in ["Last Update", "Updated full address"]:
         sheet.update_cell(1, idx, col)
         df[col] = ""
 if not df.empty:
-    try:
-        df["Last Update"] = pd.to_datetime(df["Last Update"])
-    except:
-        pass
+    df["Last Update"] = pd.to_datetime(df["Last Update"], errors='ignore')
 
 # --- Group selection ---
 groups = sorted(df.get('Group', pd.Series()).dropna().unique())
-group = st.selectbox("Select your assigned group:", [""] + groups, key='selected_group')
+group = st.selectbox("Select your assigned group:", [None] + groups, key='selected_group')
 if not group:
     st.stop()
 
-# Reset attendee selection and default to first name when group changes
-prev = st.session_state.get('prev_group')
-if prev != group:
+# Reset selection on group change
+if st.session_state.get('prev_group') != group:
     st.session_state['selected_name'] = None
-    st.session_state['prev_group'] = group
+st.session_state['prev_group'] = group
 
-# --- Prepare attendees for this group ---
-filtered = df[df.get('Group') == group].copy()
+# --- Prepare attendees ---
+filtered = df[df['Group'] == group].copy()
 if filtered.empty:
     st.info("No attendees in this group.")
     st.stop()
 filtered = filtered.sort_values("Last Update", ascending=False, na_position='last')
 
-display_df = filtered[['name', 'gender', 'phone', 'Updated full address']].rename(
-    columns={'name':'Name','gender':'Gender','phone':'Phone','Updated full address':'Address'}
-)
+# Rename for display
+display_df = filtered.rename(columns={'name':'Name','gender':'Gender','phone':'Phone','Updated full address':'Address'})
 
-# Automatically select first attendee if none selected
-def get_default_name():
+def default_name():
     return display_df['Name'].iloc[0] if not display_df.empty else None
 
-if not st.session_state.get('selected_name'):
-    default_name = get_default_name()
-    if default_name:
-        st.session_state['selected_name'] = default_name
+# Ensure a selected_name exists
+def get_selected_name():
+    return st.session_state.get('selected_name') or default_name()
 
-selected_name = st.session_state['selected_name']
+selected_name = get_selected_name()
+st.session_state['selected_name'] = selected_name
 
-# --- 1. Select attendee via clickable buttons ---
+# --- Attendee buttons ---
 st.subheader(f"Select Attendee in Group {group}")
 st.markdown('<div class="grid-container">', unsafe_allow_html=True)
 for i, name in enumerate(display_df['Name']):
-    with st.container():
-        st.markdown('<div class="grid-item">', unsafe_allow_html=True)
-        if st.button(name, key=f'name_btn_{i}'):
-            st.session_state['selected_name'] = name
-        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<div class="grid-item">', unsafe_allow_html=True)
+    if st.button(name, key=f'name_btn_{i}'):
+        st.session_state['selected_name'] = name
+    st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 2. Fields / action for record updates ---
-# Safely find the matching record without raising IndexError
-match_df = filtered[filtered['name'] == selected_name]
-if match_df.empty:
-    st.warning("Attendee not found in the current group. Please reselect.")
-    st.stop()
-match = match_df.iloc[0]
+# --- Record update section ---
+# Wrap match lookup in try/except to avoid IndexError
+try:
+    match_df = filtered[filtered['name'] == selected_name]
+    match = match_df.iloc[0]
+except (IndexError, KeyError):
+    st.warning("Error selecting attendee. Resetting selection.")
+    st.session_state['selected_name'] = default_name()
+    st.experimental_rerun()
+
 idx = match.name
 row_num = idx + 2
-selected_phone = match.get('phone','')
+selected_phone = match.get('phone', '')
 
 st.write(f"**{match.get('name','')}** — {selected_phone} — {match.get('tag','')}")
-action = st.radio("Action:", ["Update Address","Capture Follow-Up"], key='action')
+action = st.radio("Action:", ["Update Address","Capture Follow-Up"])
 now = datetime.now(pytz.timezone("Africa/Lagos")).strftime("%Y-%m-%d %H:%M:%S")
 
 if action == "Update Address":
-    current = match.get('Updated full address','') or ''
-    new_addr = st.text_input("New Address:", value=current, key='new_addr')
-    if st.button("Submit Address", key='submit_addr'):
-        sheet.update_cell(row_num, df.columns.get_loc('Updated full address')+1, new_addr)
-        sheet.update_cell(row_num, df.columns.get_loc('Last Update')+1, now)
+    current = match.get('Updated full address', '')
+    new_addr = st.text_input("New Address:", value=current)
+    if st.button("Submit Address"):
+        c_idx = df.columns.get_loc('Updated full address') + 1
+        sheet.update_cell(row_num, c_idx, new_addr)
+        sheet.update_cell(row_num, df.columns.get_loc('Last Update') + 1, now)
         st.success("Address updated successfully.")
 else:
-    ftype = st.selectbox("Type of follow-up:", ["Call","Physical visit"], key='ftype')
+    ftype = st.selectbox("Type of follow-up:", ["Call","Physical visit"])
     if ftype == 'Call':
-        result = st.selectbox("Result of call:", ["Not reachable","Switched off","Reached","Missed call"], key='result')
+        result = st.selectbox("Result of call:", ["Not reachable","Switched off","Reached","Missed call"])
     else:
-        result = st.selectbox("Result of visit:", ["Available","Not Available","Invalid Address"], key='result')
-    soon = st.radio("Soon to be CBA member?", ["Next service","Soon"], key='soon')
-    remarks = st.text_area("Remarks:", key='remarks')
-    if st.button("Submit Follow-Up", key='submit_followup'):
+        result = st.selectbox("Result of visit:", ["Available","Not Available","Invalid Address"])
+    soon = st.radio("Soon to be CBA member?", ["Next service","Soon"])
+    remarks = st.text_area("Remarks:")
+    if st.button("Submit Follow-Up"):
         follow_cols = sorted([c for c in df.columns if c.startswith('Follow_up')], key=lambda x: int(x.replace('Follow_up','')) if x.replace('Follow_up','').isdigit() else 0)
         slot = next((c for c in follow_cols if not match.get(c)), None)
         if not slot:
             slot = f'Follow_up{len(follow_cols)+1}'
             header = sheet.row_values(1)
-            new_idx = len(header)+1
             sheet.add_cols(1)
-            sheet.update_cell(1, new_idx, slot)
-        col_idx = df.columns.get_loc(slot)+1
+            sheet.update_cell(1, len(header)+1, slot)
+        col_idx = df.columns.get_loc(slot) + 1
         entry = f"{slot.replace('Follow_up','')}||{ftype}||{result}||{soon}||{remarks}"
         sheet.update_cell(row_num, col_idx, entry)
-        sheet.update_cell(row_num, df.columns.get_loc('Last Update')+1, now)
+        sheet.update_cell(row_num, df.columns.get_loc('Last Update') + 1, now)
         st.success("Follow-up report submitted.")
 
-# --- 3. List of attendees with collapse/expand ---
-with st.expander("Show/Hide Attendees List", expanded=False):
-    html = display_df.to_html(index=False)
-    st.markdown(html, unsafe_allow_html=True)
+# --- Attendees list expander ---
+with st.expander("Show/Hide Attendees List"):
+    st.dataframe(display_df[['Name','Gender','Phone','Address']])
