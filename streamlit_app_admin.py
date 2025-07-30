@@ -88,7 +88,7 @@ if not group:
 if st.session_state.get('prev_group') and st.session_state['prev_group'] != group:
     st.session_state.pop('selected_name', None)
     st.session_state['prev_group'] = group
-    st.stop()
+    st.rerun()
 st.session_state['prev_group'] = group
 
 # --- Prepare attendees for this group ---
